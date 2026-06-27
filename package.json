@@ -1,0 +1,40 @@
+{
+  "name": "ce-board-master",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CE Board Master - Philippine Civil Engineering Licensure Examination Reviewer",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "db:migrate": "turbo run db:migrate --filter=@ce-board-master/api",
+    "db:migrate:dev": "turbo run db:migrate:dev --filter=@ce-board-master/api",
+    "db:seed": "turbo run db:seed --filter=@ce-board-master/api",
+    "db:studio": "turbo run db:studio --filter=@ce-board-master/api",
+    "dev": "turbo run dev --parallel",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:up": "docker compose up -d",
+    "format": "turbo run format",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "prisma": "pnpm --filter @ce-board-master/api exec prisma",
+    "prisma:generate": "pnpm --filter @ce-board-master/api exec prisma generate",
+    "prisma:migrate:deploy": "pnpm --filter @ce-board-master/api exec prisma migrate deploy",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "typecheck": "turbo run typecheck",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.0",
+    "@commitlint/config-conventional": "^19.6.0",
+    "husky": "^9.1.7",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  }
+}

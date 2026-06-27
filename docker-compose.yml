@@ -1,0 +1,151 @@
+# =============================================================================
+# CE Board Master — Docker Compose (Development Environment)
+# =============================================================================
+# Provides all infrastructure dependencies for local development.
+# The NestJS API is run directly on the host (not in Docker) for fast
+# hot-reloading and debugging.
+#
+# Services:
+# - postgres:  PostgreSQL 16 (mirrors AWS RDS configuration)
+# - redis:     Redis 7 (mirrors AWS ElastiCache configuration)
+# - pgadmin:   PostgreSQL web UI (development only)
+# - mailhog:   Email capture for development (intercepts all outbound emails)
+# - redis-insight: Redis web UI (development only)
+#
+# Usage:
+#   pnpm docker:up        Start all services
+#   pnpm docker:down      Stop all services
+#   pnpm docker:logs      Follow all service logs
+#   docker compose logs postgres -f   Follow specific service
+#
+# Environment parity: Service configuration mirrors production values.
+# Any configuration difference between dev and prod is a source of bugs.
+# =============================================================================
+
+services:
+  # ── PostgreSQL 16 ───────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: ceboardmaster-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ceboardmaster
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ceboardmaster_dev
+      # Performance tuning — mirrors AWS RDS parameter group settings
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=en_US.utf8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Custom PostgreSQL configuration
+      - ./infrastructure/docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      # Initialization scripts (run once on first container start)
+      - ./infrastructure/docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    command: >
+      postgres
+        -c max_connections=100
+        -c shared_buffers=256MB
+        -c effective_cache_size=768MB
+        -c maintenance_work_mem=64MB
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=16MB
+        -c default_statistics_target=100
+        -c random_page_cost=1.1
+        -c effective_io_concurrency=200
+        -c work_mem=4MB
+        -c min_wal_size=1GB
+        -c max_wal_size=4GB
+        -c log_statement=none
+        -c log_duration=off
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ceboardmaster -d ceboardmaster_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - ceboardmaster
+
+  # ── Redis 7 ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ceboardmaster-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./infrastructure/docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - ceboardmaster
+
+  # ── pgAdmin 4 (Development only) ────────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ceboardmaster-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@ce-boardmaster.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./infrastructure/docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ceboardmaster
+    profiles:
+      - tools  # Only started with: docker compose --profile tools up
+
+  # ── Mailhog (Development email capture) ─────────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: ceboardmaster-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - ceboardmaster
+    profiles:
+      - tools
+
+  # ── Redis Insight (Development only) ────────────────────────────────────────
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: ceboardmaster-redis-insight
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    networks:
+      - ceboardmaster
+    profiles:
+      - tools
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  ceboardmaster:
+    driver: bridge
+    name: ceboardmaster
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    name: ceboardmaster_postgres_data
+  redis_data:
+    name: ceboardmaster_redis_data
+  pgadmin_data:
+    name: ceboardmaster_pgadmin_data

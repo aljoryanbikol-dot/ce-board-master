@@ -1,0 +1,66 @@
+# =============================================================================
+# CE Board Master — Release
+# =============================================================================
+# Triggers when a semver tag (vX.Y.Z) is pushed. Generates release notes from
+# commits, builds release-tagged images, and publishes a GitHub Release.
+# Production deployment is handled by deploy-production.yml on the main branch;
+# this workflow is the versioning + artifact-publishing record.
+# =============================================================================
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Derive version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog (since previous tag)
+        id: changelog
+        run: |
+          prev=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || echo "")
+          echo "## CE Board Master ${GITHUB_REF_NAME}" > NOTES.md
+          echo "" >> NOTES.md
+          if [ -n "$prev" ]; then
+            echo "Changes since ${prev}:" >> NOTES.md
+            git log --pretty=format:'- %s (%h)' "${prev}..${GITHUB_REF_NAME}" >> NOTES.md
+          else
+            git log --pretty=format:'- %s (%h)' >> NOTES.md
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push release-tagged API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/api/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/api:${{ steps.ver.outputs.version }}
+          cache-from: type=gha
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: NOTES.md
+          name: CE Board Master ${{ steps.ver.outputs.version }}
+          draft: false
+          prerelease: ${{ contains(steps.ver.outputs.version, '-rc') || contains(steps.ver.outputs.version, '-beta') }}

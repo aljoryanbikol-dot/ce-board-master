@@ -1,0 +1,117 @@
+# =============================================================================
+# CE Board Master — API Dockerfile (Multi-stage Production Build)
+# =============================================================================
+# Stage 1: deps     — Install all dependencies
+# Stage 2: builder  — Compile TypeScript to JavaScript
+# Stage 3: runner   — Minimal production image (no dev dependencies)
+#
+# Design principles:
+# - Minimal final image size (node:22-alpine base = ~60MB vs ~900MB node:22)
+# - Non-root user for security
+# - Layer caching optimized: package files copied before source
+# - Health check built into image for ECS target group registration
+# - Node.js native ESM not used — CommonJS for NestJS compatibility
+# =============================================================================
+
+# ── Stage 1: Install dependencies ────────────────────────────────────────────
+FROM node:22-alpine AS deps
+LABEL stage=deps
+
+# Install system dependencies for native Node.js modules
+# argon2: requires gcc and python3 for compilation
+# prisma: requires openssl for database TLS
+RUN apk add --no-cache \
+    libc6-compat \
+    openssl \
+    python3 \
+    make \
+    g++
+
+WORKDIR /app
+
+# Enable pnpm via corepack
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy workspace configuration
+COPY pnpm-workspace.yaml ./
+COPY package.json ./
+COPY turbo.json ./
+
+# Copy app-specific package files (for layer caching)
+COPY apps/api/package.json ./apps/api/
+COPY packages/types/package.json ./packages/types/ 2>/dev/null || true
+COPY packages/utils/package.json ./packages/utils/ 2>/dev/null || true
+
+# Install dependencies (frozen lockfile for reproducible builds)
+COPY pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --filter @ce-board-master/api...
+
+# ── Stage 2: Build ────────────────────────────────────────────────────────────
+FROM node:22-alpine AS builder
+LABEL stage=builder
+
+RUN apk add --no-cache openssl
+
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy workspace files
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
+
+# Copy source code
+COPY turbo.json ./
+COPY pnpm-workspace.yaml ./
+COPY package.json ./
+COPY apps/api ./apps/api
+COPY packages ./packages
+
+# Generate Prisma client
+WORKDIR /app/apps/api
+RUN pnpm db:generate
+
+# Compile TypeScript
+RUN pnpm build
+
+# ── Stage 3: Production runner ────────────────────────────────────────────────
+FROM node:22-alpine AS runner
+LABEL maintainer="CE Board Master Engineering <engineering@ce-boardmaster.ph>"
+LABEL org.opencontainers.image.title="CE Board Master API"
+LABEL org.opencontainers.image.description="Philippine Civil Engineering Licensure Examination Reviewer"
+
+# Install runtime system dependencies only
+RUN apk add --no-cache \
+    openssl \
+    dumb-init \
+    && rm -rf /var/cache/apk/*
+
+# Create non-root user for security
+# Running as root in a container is a security risk (CVE mitigation)
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nestjs
+
+WORKDIR /app
+
+# Copy production node_modules (excludes devDependencies)
+COPY --from=builder --chown=nestjs:nodejs /app/apps/api/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/api/prisma ./prisma
+
+# Switch to non-root user
+USER nestjs
+
+# Expose API port
+EXPOSE 3001
+
+# Health check: used by Docker and ECS to verify container health
+# --interval: check every 30 seconds
+# --timeout: fail if response takes > 10 seconds
+# --start-period: give NestJS 30 seconds to start before health checks begin
+# --retries: 3 consecutive failures = unhealthy
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/v1/health || exit 1
+
+# Use dumb-init as PID 1 to handle signals correctly
+# Prevents zombie processes and ensures graceful shutdown
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "dist/main"]

@@ -1,0 +1,91 @@
+# =============================================================================
+# CE Board Master — Alerting Rules
+# =============================================================================
+# Prometheus/Alertmanager-format rules. The same thresholds map 1:1 to Datadog
+# monitors or CloudWatch alarms (see monitoring guide). Severities: page = wake
+# someone; ticket = next business day.
+# =============================================================================
+groups:
+  - name: ce-board-master-availability
+    rules:
+      - alert: APIDown
+        expr: up{job="ce-api"} == 0
+        for: 2m
+        labels: { severity: page }
+        annotations:
+          summary: "API is down"
+          description: "The /api/v1/health probe has failed for 2 minutes."
+          runbook: "docs/OPERATIONS_MANUAL.md#api-down"
+
+      - alert: WebDown
+        expr: probe_success{job="ce-web"} == 0
+        for: 2m
+        labels: { severity: page }
+        annotations:
+          summary: "Web frontend is unreachable"
+
+      - alert: HealthCheckDegraded
+        expr: ce_health_status{check="database"} != 1
+        for: 1m
+        labels: { severity: page }
+        annotations:
+          summary: "Database health indicator is unhealthy"
+
+  - name: ce-board-master-latency-errors
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.02
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: "5xx error rate > 2% over 5m"
+
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1.0
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: "p95 request latency > 1s for 10m"
+
+      - alert: AuthFailureSpike
+        expr: sum(rate(auth_login_failed_total[5m])) > 20
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Elevated login failures (possible credential-stuffing)"
+
+  - name: ce-board-master-resources
+    rules:
+      - alert: HighMemory
+        expr: process_resident_memory_bytes / on() group_left container_spec_memory_limit_bytes > 0.9
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "Container memory > 90% of limit" }
+
+      - alert: PostgresConnectionsHigh
+        expr: pg_stat_activity_count / pg_settings_max_connections > 0.8
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "PostgreSQL connection pool > 80%" }
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "Redis memory > 85% (eviction risk)" }
+
+  - name: ce-board-master-business
+    rules:
+      - alert: PaymentWebhookFailures
+        expr: sum(rate(payment_webhook_failed_total[15m])) > 0
+        for: 15m
+        labels: { severity: page }
+        annotations:
+          summary: "Payment webhook processing failing — revenue impact"
+
+      - alert: BackupMissing
+        expr: time() - ce_last_successful_db_backup_timestamp > 93600  # 26h
+        labels: { severity: page }
+        annotations:
+          summary: "No successful DB backup in 26h"
+          runbook: "docs/DISASTER_RECOVERY.md"

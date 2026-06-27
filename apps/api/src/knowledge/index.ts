@@ -1,0 +1,12 @@
+export { KnowledgeModule } from './knowledge.module';
+export { PublicIdService } from './services/public-id.service';
+export { DocumentParserService } from './services/document-parser.service';
+export { ValidationEngineService } from './services/validation-engine.service';
+export { KnowledgeIngestionService } from './services/knowledge-ingestion.service';
+export { CrossReferenceService } from './services/cross-reference.service';
+export { KnowledgeSearchService } from './services/knowledge-search.service';
+export { KnowledgeErrors } from './knowledge.errors';
+export * from './constants/knowledge.constants';
+export type * from './types/knowledge.types';
+export { KnowledgeIntegrationService } from './services/knowledge-integration.service';
+export type { QuestionKnowledgeRefs, QuestionValidationVerdict, ReferenceCheck } from './services/knowledge-integration.service';

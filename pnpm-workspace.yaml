@@ -1,0 +1,29 @@
+# CE Board Master — Turborepo Monorepo Workspace Configuration
+# Defines which directories are workspace packages.
+# All apps and shared packages are discovered automatically.
+packages:
+  - "apps/*"
+  - "packages/*"
+
+allowBuilds:
+  '@nestjs/core': set this to true or false
+  '@prisma/client': set this to true or false
+  '@prisma/engines': set this to true or false
+  '@scarf/scarf': set this to true or false
+  argon2: set this to true or false
+  esbuild: set this to true or false
+  msgpackr-extract: set this to true or false
+  prisma: set this to true or false
+  sharp: set this to true or false
+
+# Dependencies allowed to run install/build scripts (pnpm v9+ approval list).
+onlyBuiltDependencies:
+  - "@nestjs/core"
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "@scarf/scarf"
+  - argon2
+  - esbuild
+  - msgpackr-extract
+  - prisma
+  - sharp

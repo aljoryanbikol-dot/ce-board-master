@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Husky hook: runs lint and typecheck before every commit.
+# Prevents commits that fail TypeScript or ESLint checks.
+# Only runs on staged files (via lint-staged in future Sprint).
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run Turborepo lint on affected packages only
+npx turbo run lint typecheck --filter='[HEAD]' --concurrency=4

@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "CE Board Master Dev",
+      "Group": "Development",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "ceboardmaster_dev",
+      "Username": "ceboardmaster",
+      "SSLMode": "prefer",
+      "PassFile": "/tmp/pgpassfile"
+    }
+  }
+}

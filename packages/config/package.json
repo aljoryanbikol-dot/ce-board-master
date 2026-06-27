@@ -1,0 +1,9 @@
+{
+  "name": "@ce-board-master/config",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared configuration (ESLint, TypeScript, Tailwind base) for CE Board Master monorepo",
+  "scripts": {
+    "lint": "echo 'Config package - no lint'"
+  }
+}

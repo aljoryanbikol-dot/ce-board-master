@@ -1,0 +1,9 @@
+# Prisma migration files are generated here via:
+# pnpm db:migrate:dev --name <migration_name>
+#
+# The first migration will be created when the development database
+# is running and pnpm db:migrate:dev is executed.
+#
+# Migration naming convention:
+# YYYYMMDDHHMMSS_descriptive_name
+# Example: 20260625000000_initial_schema

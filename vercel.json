@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "//": "Monorepo Vercel config. The Vercel project's Root Directory should be set to 'apps/web' in the dashboard; that directory's own vercel.json (apps/web/vercel.json) holds the build/install commands, regions, security headers, and API rewrite. This root file documents intent and pins the framework + ignored-build behavior for the monorepo so unrelated package changes don't trigger a web redeploy.",
+  "framework": "nextjs",
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
+  "ignoreCommand": "npx turbo-ignore @ce-board/web"
+}

@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# Husky hook: validates commit message format via commitlint
+# Runs before every git commit to enforce Conventional Commits.
+# See commitlint.config.js for rules.
+. "$(dirname -- "$0")/_/husky.sh"
+
+npx --no -- commitlint --edit "$1"

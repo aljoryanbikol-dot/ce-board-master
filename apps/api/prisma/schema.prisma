@@ -1,0 +1,2571 @@
+// ============================================================================
+// CE Board Master — Prisma Database Schema
+// Phase 2 Database Architecture — Approved 2026-06-25
+//
+// All tables follow the design principles in Database Design Specification:
+// - UUID v7 primary keys (via gen_random_uuid() until pg_uuidv7 extension)
+// - created_at / updated_at on every table (updated_at via trigger)
+// - deleted_at for soft delete on business data tables
+// - snake_case naming throughout
+//
+// PostgreSQL 16+ is the target database.
+// PgBouncer sits between the application and RDS (transaction mode).
+//
+// IMPORTANT: Do NOT modify this schema without updating the Database Design
+// Specification document. All changes require numbered migration files.
+// ============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins", "omitApi"]
+  binaryTargets   = ["native", "linux-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserStatus {
+  pending
+  active
+  suspended
+  deactivated
+
+  @@map("user_status")
+}
+
+enum OAuthProvider {
+  google
+  facebook
+  apple
+
+  @@map("oauth_provider")
+}
+
+enum MfaMethod {
+  totp
+
+  @@map("mfa_method")
+}
+
+enum AuthTokenType {
+  refresh
+  email_verify
+  password_reset
+  mfa_backup
+
+  @@map("auth_token_type")
+}
+
+enum LoginFailReason {
+  wrong_password
+  unverified
+  suspended
+  mfa_failed
+  account_locked
+
+  @@map("login_fail_reason")
+}
+
+enum SubscriptionTier {
+  free
+  basic
+  pro
+
+  @@map("subscription_tier")
+}
+
+enum QuestionStatus {
+  draft
+  in_review
+  approved
+  published
+  archived
+  flagged
+
+  @@map("question_status")
+}
+
+enum BloomLevel {
+  remember
+  understand
+  apply
+  analyze
+  evaluate
+  create
+
+  @@map("bloom_level")
+}
+
+enum QuestionType {
+  multiple_choice
+  computation
+  diagram_based
+
+  @@map("question_type")
+}
+
+enum ImageType {
+  figure
+  diagram
+  chart
+  formula_image
+  choice_image
+  explanation_image
+
+  @@map("image_type")
+}
+
+enum ImagePosition {
+  stem
+  choice_a
+  choice_b
+  choice_c
+  choice_d
+  explanation
+
+  @@map("image_position")
+}
+
+enum ChangeType {
+  create
+  edit
+  correction
+  choice_update
+  explanation_update
+  metadata_update
+
+  @@map("change_type")
+}
+
+// ── Admin CMS enums (Sprint 2.7) ──────────────────────────────────────────────
+
+/// The four editorial review stages. Mirrors the application-level REVIEW_STAGES
+/// from Sprint 2.6 (which layered stages under the in_review status); persisted
+/// here so assignments and comments can be scoped to a specific stage.
+enum ReviewStage {
+  technical
+  educational
+  editorial
+  qa
+
+  @@map("review_stage")
+}
+
+/// Lifecycle of a reviewer assignment.
+enum AssignmentStatus {
+  pending
+  accepted
+  completed
+  declined
+  reassigned
+
+  @@map("assignment_status")
+}
+
+/// Category of an internal editorial note.
+enum EditorialNoteCategory {
+  general
+  style
+  sourcing
+  prc_alignment
+  correction
+  warning
+
+  @@map("editorial_note_category")
+}
+
+enum ReviewAction {
+  submit
+  approve
+  reject
+  request_changes
+  publish
+  archive
+  flag
+  unflag
+
+  @@map("review_action")
+}
+
+enum EngCodeType {
+  structural
+  geotechnical
+  hydraulic
+  transportation
+  sanitary
+  electrical
+  general
+  international
+
+  @@map("eng_code_type")
+}
+
+enum CodeReqType {
+  reference
+  basis_of_design
+  formula_source
+  limit_value
+  definition
+
+  @@map("code_req_type")
+}
+
+enum TagCategory {
+  general
+  prc_exam
+  difficulty
+  topic_theme
+  skill_type
+  exam_year
+
+  @@map("tag_category")
+}
+
+enum QuestionRelationType {
+  related
+  prerequisite
+  recommended_next
+  same_concept
+  common_exam_pair
+
+  @@map("question_relation_type")
+}
+
+// ============================================================================
+// MODULE 1: USERS & AUTHENTICATION
+// ============================================================================
+
+/// Master identity record for every person in the system.
+/// Holds authentication-critical data only. Extended profile in UserProfile.
+model User {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String       @unique @db.VarChar(320)
+  username      String?      @unique @db.VarChar(30)
+  passwordHash  String?      @db.VarChar(255) @map("password_hash")
+  roleId        String       @db.Uuid @map("role_id")
+  status        UserStatus   @default(pending)
+  isVerified    Boolean      @default(false) @map("is_verified")
+  isActive      Boolean      @default(true) @map("is_active")
+  lastLoginAt   DateTime?    @map("last_login_at") @db.Timestamptz
+  lastLoginIp   String?      @map("last_login_ip")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime?    @map("deleted_at") @db.Timestamptz
+  version       Int          @default(0)
+
+  // Relations
+  role                    Role                  @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  profile                 UserProfile?
+  authTokens              UserAuthToken[]
+  oauthAccounts           OauthAccount[]
+  mfaConfig               MfaConfig?
+  loginAttempts           LoginAttempt[]
+  authoredQuestions       Question[]            @relation("QuestionAuthor")
+  reviewedQuestions       Question[]            @relation("QuestionReviewer")
+  publishedQuestions      Question[]            @relation("QuestionPublisher")
+  questionVersions        QuestionVersion[]     @relation("VersionChangedBy")
+  reviewedVersions        QuestionVersion[]     @relation("VersionReviewedBy")
+  reviewWorkflowActions   QuestionReviewWorkflow[]
+  uploadedImages          QuestionImage[]
+  userRoles               UserRole[]
+  subscriptions           Subscription[]
+  payments                Payment[]
+  invoices                Invoice[]
+  questionLocks           QuestionLock[]        @relation("QuestionLockHolder")
+  reviewAssignmentsGiven  ReviewAssignment[]    @relation("AssignmentAssigner")
+  reviewAssignmentsGot    ReviewAssignment[]    @relation("AssignmentAssignee")
+  reviewComments          ReviewComment[]       @relation("CommentAuthor")
+  resolvedComments        ReviewComment[]       @relation("CommentResolver")
+  editorialNotes          EditorialNote[]       @relation("EditorialNoteAuthor")
+  knowledgeDocsCreated    KnowledgeDocument[]        @relation("KnowledgeDocCreator")
+  knowledgeDocsIngested   KnowledgeDocumentVersion[] @relation("KnowledgeDocIngester")
+  learningObjectivesCreated LearningObjective[]      @relation("LoCreator")
+  blueprintsCreated       QuestionBlueprint[]        @relation("BlueprintCreator")
+  misconceptionsCreated   Misconception[]            @relation("MisconceptionCreator")
+  aiGenerationRequests    AiGenerationRequest[]      @relation("AiGenerationRequester")
+  questionAttempts        QuestionAttempt[]          @relation("UserQuestionAttempts")
+  practiceSessions        PracticeSession[]          @relation("UserPracticeSessions")
+  bookmarks               Bookmark[]                 @relation("UserBookmarks")
+  favorites               Favorite[]                 @relation("UserFavorites")
+  recentlyViewed          RecentlyViewed[]           @relation("UserRecentlyViewed")
+  topicMastery            TopicMastery[]             @relation("UserTopicMastery")
+  studyGoals              StudyGoal[]                @relation("UserStudyGoals")
+  streakDays              StudyStreakDay[]           @relation("UserStreakDays")
+  studyPlans              StudyPlan[]                @relation("UserStudyPlans")
+  studyTasks              StudyPlanTask[]            @relation("UserStudyTasks")
+  achievements            StudentAchievement[]       @relation("UserAchievements")
+  xp                      StudentXp?                 @relation("UserXp")
+  knowledgeGaps           KnowledgeGap[]             @relation("UserKnowledgeGaps")
+  learningPaths           LearningPath[]             @relation("UserLearningPaths")
+  examTemplatesCreated    ExamTemplate[]             @relation("ExamTemplateCreator")
+  mockExams               MockExam[]                 @relation("UserMockExams")
+  examResults             ExamResult[]               @relation("UserExamResults")
+  tutorConversations      TutorConversation[]        @relation("UserTutorConversations")
+  coachingNotes           TutorCoachingNote[]        @relation("UserCoachingNotes")
+
+  @@index([email])
+  @@index([username])
+  @@index([roleId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+/// Extended profile data for each user (1:1 with User).
+model UserProfile {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String    @unique @db.Uuid @map("user_id")
+  firstName          String?   @db.VarChar(100) @map("first_name")
+  lastName           String?   @db.VarChar(100) @map("last_name")
+  displayName        String?   @db.VarChar(150) @map("display_name")
+  avatarUrl          String?   @map("avatar_url")
+  bio                String?
+  phoneNumber        String?   @db.VarChar(20) @map("phone_number")
+  gender             String?   @db.VarChar(30)
+  dateOfBirth        DateTime? @map("date_of_birth") @db.Date
+  school             String?   @db.VarChar(255)
+  graduationYear     Int?      @map("graduation_year") @db.SmallInt
+  prcRegistrationNo  String?   @db.VarChar(50) @map("prc_registration_no")
+  examTargetDate     DateTime? @map("exam_target_date") @db.Date
+  preferredLanguage  String    @default("en") @db.Char(5) @map("preferred_language")
+  timezone           String    @default("Asia/Manila") @db.VarChar(50)
+  studyGoalHours     Int?      @map("study_goal_hours") @db.SmallInt
+  notificationsEmail Boolean   @default(true) @map("notifications_email")
+  notificationsPush  Boolean   @default(true) @map("notifications_push")
+  theme              String    @default("system") @db.VarChar(20)
+  version            Int       @default(0)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([examTargetDate])
+  @@index([school])
+  @@map("user_profiles")
+}
+
+/// JWT refresh tokens, email verification, and password reset tokens.
+model UserAuthToken {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String        @db.Uuid @map("user_id")
+  tokenHash   String        @unique @db.VarChar(512) @map("token_hash")
+  tokenType   AuthTokenType @map("token_type")
+  expiresAt   DateTime      @map("expires_at") @db.Timestamptz
+  isRevoked   Boolean       @default(false) @map("is_revoked")
+  revokedAt   DateTime?     @map("revoked_at") @db.Timestamptz
+  userAgent   String?       @map("user_agent")
+  ipAddress   String?       @map("ip_address")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("user_auth_tokens")
+}
+
+/// OAuth provider linkages per user (Google, Facebook, etc.)
+model OauthAccount {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String        @db.Uuid @map("user_id")
+  provider          OAuthProvider
+  providerUserId    String        @db.VarChar(255) @map("provider_user_id")
+  providerEmail     String?       @db.VarChar(320) @map("provider_email")
+  accessTokenEnc    String?       @map("access_token_enc")
+  refreshTokenEnc   String?       @map("refresh_token_enc")
+  tokenExpiresAt    DateTime?     @map("token_expires_at") @db.Timestamptz
+  scopes            String[]
+  rawProfile        Json?         @map("raw_profile")
+  isActive          Boolean       @default(true) @map("is_active")
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+/// TOTP multi-factor authentication configuration (1:1 with User).
+model MfaConfig {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @unique @db.Uuid @map("user_id")
+  method         MfaMethod @default(totp)
+  totpSecretEnc  String?   @map("totp_secret_enc")
+  backupCodes    String[]  @map("backup_codes")
+  isEnabled      Boolean   @default(false) @map("is_enabled")
+  enabledAt      DateTime? @map("enabled_at") @db.Timestamptz
+  lastUsedAt     DateTime? @map("last_used_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mfa_configs")
+}
+
+/// Immutable audit log of every login attempt (success and failure).
+model LoginAttempt {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String?          @db.Uuid @map("user_id")
+  emailTried  String           @db.VarChar(320) @map("email_tried")
+  ipAddress   String           @map("ip_address")
+  userAgent   String?          @map("user_agent")
+  succeeded   Boolean
+  failReason  LoginFailReason? @map("fail_reason")
+  attemptedAt DateTime         @default(now()) @map("attempted_at") @db.Timestamptz
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, attemptedAt])
+  @@index([ipAddress, attemptedAt])
+  @@index([emailTried, attemptedAt])
+  @@map("login_attempts")
+}
+
+// ============================================================================
+// MODULE 2: ROLES & PERMISSIONS (RBAC)
+// ============================================================================
+
+/// Named roles: free_user, subscriber, content_admin, super_admin.
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique @db.VarChar(100)
+  slug        String   @unique @db.VarChar(50)
+  description String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz
+
+  users           User[]
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+/// Granular platform capabilities. Slugs: module:resource:action.
+model Permission {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique @db.VarChar(150)
+  slug        String   @unique @db.VarChar(100)
+  module      String   @db.VarChar(50)
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+/// Junction: role ↔ permission (M:N).
+model RolePermission {
+  roleId       String   @db.Uuid @map("role_id")
+  permissionId String   @db.Uuid @map("permission_id")
+  grantedBy    String?  @db.Uuid @map("granted_by")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+
+/// Multi-role assignment table: one user can hold multiple roles simultaneously.
+/// The User.roleId FK is retained for JWT fast-path (primary role).
+/// This table provides the extended permission surface queried at runtime.
+/// Sprint 2.3: Replaces single-role-per-user for fine-grained RBAC.
+model UserRole {
+  userId     String    @db.Uuid @map("user_id")
+  roleId     String    @db.Uuid @map("role_id")
+  grantedBy  String?   @db.Uuid @map("granted_by")
+  grantedAt  DateTime  @default(now()) @map("granted_at") @db.Timestamptz
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz
+  isActive   Boolean   @default(true) @map("is_active")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([userId, isActive])
+  @@map("user_roles")
+}
+
+// ============================================================================
+// MODULE 3: CONTENT TAXONOMY
+// ============================================================================
+
+/// Top-level CE examination subject areas.
+model Subject {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String   @unique @db.VarChar(150)
+  code             String   @unique @db.VarChar(20)
+  examDay          Int      @map("exam_day") @db.SmallInt
+  prcWeightPercent Decimal? @map("prc_weight_percent") @db.Decimal(5, 2)
+  description      String?
+  colorHex         String?  @db.Char(7) @map("color_hex")
+  iconName         String?  @db.VarChar(50) @map("icon_name")
+  sortOrder        Int      @default(0) @map("sort_order") @db.SmallInt
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz
+
+  topics   Topic[]
+  questions Question[]
+  formulas  FormulaLibrary[]
+  learningObjectives LearningObjective[] @relation("SubjectLearningObjectives")
+
+  @@index([examDay])
+  @@index([isActive])
+  @@map("subjects")
+}
+
+/// Second-level taxonomy: subdivisions within a subject.
+model Topic {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subjectId          String   @db.Uuid @map("subject_id")
+  name               String   @db.VarChar(200)
+  code               String   @unique @db.VarChar(30)
+  prcLearningOutcome String?  @map("prc_learning_outcome")
+  prcWeightPercent   Decimal? @map("prc_weight_percent") @db.Decimal(5, 2)
+  description        String?
+  sortOrder          Int      @default(0) @map("sort_order") @db.SmallInt
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz
+
+  subject   Subject    @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  subtopics Subtopic[]
+  questions Question[]
+  formulas  FormulaLibrary[]
+
+  @@index([subjectId])
+  @@index([subjectId, sortOrder])
+  @@map("topics")
+}
+
+/// Finest granularity — atomic unit for adaptive learning.
+model Subtopic {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topicId   String   @db.Uuid @map("topic_id")
+  name      String   @db.VarChar(200)
+  code      String   @unique @db.VarChar(40)
+  description String?
+  keywords  String[]
+  sortOrder Int      @default(0) @map("sort_order") @db.SmallInt
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+
+  topic     Topic      @relation(fields: [topicId], references: [id], onDelete: Restrict)
+  questions Question[]
+
+  @@index([topicId])
+  @@index([topicId, sortOrder])
+  @@map("subtopics")
+}
+
+/// Question difficulty tiers with psychometric thresholds.
+model DifficultyLevel {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String   @unique @db.VarChar(50)
+  code             Int      @unique @db.SmallInt
+  description      String?
+  passingThreshold Decimal  @default(70.00) @map("passing_threshold") @db.Decimal(5, 2)
+  colorHex         String?  @db.Char(7) @map("color_hex")
+  sortOrder        Int      @default(0) @map("sort_order") @db.SmallInt
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  questions Question[]
+
+  @@map("difficulty_levels")
+}
+
+// ============================================================================
+// MODULE 4: QUESTION BANK (Phase 2)
+// ============================================================================
+
+/// Master question record. Canonical content; satellite tables hold derived data.
+model Question {
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionCode       String         @unique @db.VarChar(30) @map("question_code")
+  subjectId          String         @db.Uuid @map("subject_id")
+  topicId            String         @db.Uuid @map("topic_id")
+  subtopicId         String         @db.Uuid @map("subtopic_id")
+  difficultyLevelId  String         @db.Uuid @map("difficulty_level_id")
+  stemText           String         @map("stem_text")
+  stemLatex          String?        @map("stem_latex")
+  stemHtml           String?        @map("stem_html")
+  correctChoice      String         @db.Char(1) @map("correct_choice")
+  explanationText    String         @map("explanation_text")
+  explanationLatex   String?        @map("explanation_latex")
+  explanationHtml    String?        @map("explanation_html")
+  questionStatus     QuestionStatus @default(draft) @map("question_status")
+  bloomLevel         BloomLevel     @default(apply) @map("bloom_level")
+  prcSyllabusRef     String?        @db.VarChar(100) @map("prc_syllabus_ref")
+  learningObjective  String?        @map("learning_objective")
+  boardWeight        Decimal?       @map("board_weight") @db.Decimal(5, 4)
+  estSolvingTimeSec  Int            @default(90) @map("est_solving_time_sec") @db.SmallInt
+  questionType       QuestionType   @default(multiple_choice) @map("question_type")
+  prcYearAppeared    Int[]          @map("prc_year_appeared")
+  keywords           String[]
+  language           String         @default("en") @db.Char(5)
+  authorId           String         @db.Uuid @map("author_id")
+  reviewerId         String?        @db.Uuid @map("reviewer_id")
+  publishedBy        String?        @db.Uuid @map("published_by")
+  publishedAt        DateTime?      @map("published_at") @db.Timestamptz
+  currentVersion     Int            @default(1) @map("current_version") @db.SmallInt
+  isPrcVerified      Boolean        @default(false) @map("is_prc_verified")
+  isAiGenerated      Boolean        @default(false) @map("is_ai_generated")
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt          DateTime?      @map("deleted_at") @db.Timestamptz
+
+  subject          Subject              @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  topic            Topic                @relation(fields: [topicId], references: [id], onDelete: Restrict)
+  subtopic         Subtopic             @relation(fields: [subtopicId], references: [id], onDelete: Restrict)
+  difficultyLevel  DifficultyLevel      @relation(fields: [difficultyLevelId], references: [id], onDelete: Restrict)
+  author           User                 @relation("QuestionAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  reviewer         User?                @relation("QuestionReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  publisher        User?                @relation("QuestionPublisher", fields: [publishedBy], references: [id], onDelete: SetNull)
+  choices          QuestionChoice[]
+  images           QuestionImage[]
+  statistics       QuestionStatistics?
+  aiContent        QuestionAiContent?
+  intelligence     QuestionIntelligence?
+  versions         QuestionVersion[]
+  reviewWorkflow   QuestionReviewWorkflow[]
+  questionTags     QuestionTag[]
+  questionFormulas QuestionFormula[]
+  references       QuestionReference[]
+  codeReferences   QuestionCodeReference[]
+  relatedFrom      QuestionRelated[]    @relation("RelatedFrom")
+  relatedTo        QuestionRelated[]    @relation("RelatedTo")
+  attempts         QuestionAttempt[]    @relation("QuestionAttempts")
+  bookmarks        Bookmark[]           @relation("QuestionBookmarks")
+  favorites        Favorite[]           @relation("QuestionFavorites")
+  recentlyViewedBy RecentlyViewed[]     @relation("QuestionRecentlyViewed")
+  examQuestions    ExamQuestion[]       @relation("QuestionExamQuestions")
+  locks            QuestionLock[]
+  reviewAssignments ReviewAssignment[]
+  reviewComments   ReviewComment[]
+  editorialNotes   EditorialNote[]
+
+  @@index([subtopicId, difficultyLevelId])
+  @@index([topicId])
+  @@index([subjectId])
+  @@index([questionStatus])
+  @@index([authorId])
+  @@index([publishedAt])
+  @@map("questions")
+}
+
+/// The four answer choices for each question (A, B, C, D).
+model QuestionChoice {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId    String  @db.Uuid @map("question_id")
+  choiceLetter  String  @db.Char(1) @map("choice_letter")
+  choiceText    String  @map("choice_text")
+  choiceLatex   String? @map("choice_latex")
+  choiceHtml    String? @map("choice_html")
+  isCorrect     Boolean @default(false) @map("is_correct")
+  choiceImageId String? @db.Uuid @map("choice_image_id")
+  explanation   String?
+  sortOrder     Int     @default(0) @map("sort_order") @db.SmallInt
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, choiceLetter])
+  @@index([questionId, isCorrect])
+  @@map("question_choices")
+}
+
+/// Images and diagrams attached to questions.
+model QuestionImage {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId     String        @db.Uuid @map("question_id")
+  imageType      ImageType     @map("image_type")
+  position       ImagePosition
+  s3Key          String        @unique @map("s3_key")
+  cdnUrl         String        @map("cdn_url")
+  altText        String        @map("alt_text")
+  caption        String?
+  widthPx        Int?          @map("width_px") @db.SmallInt
+  heightPx       Int?          @map("height_px") @db.SmallInt
+  fileSizeBytes  Int?          @map("file_size_bytes")
+  mimeType       String        @db.VarChar(50) @map("mime_type")
+  sortOrder      Int           @default(0) @map("sort_order") @db.SmallInt
+  uploadedBy     String        @db.Uuid @map("uploaded_by")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  uploader User     @relation(fields: [uploadedBy], references: [id], onDelete: Restrict)
+
+  @@index([questionId, position])
+  @@map("question_images")
+}
+
+/// Live performance metrics per question (updated asynchronously).
+model QuestionStatistics {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId            String   @unique @db.Uuid @map("question_id")
+  totalAttempts         BigInt   @default(0) @map("total_attempts")
+  correctAttempts       BigInt   @default(0) @map("correct_attempts")
+  accuracyRate          Decimal  @default(0) @map("accuracy_rate") @db.Decimal(5, 4)
+  avgSolvingTimeSec     Decimal? @map("avg_solving_time_sec") @db.Decimal(8, 2)
+  medianSolvingTimeSec  Decimal? @map("median_solving_time_sec") @db.Decimal(8, 2)
+  skipRate              Decimal  @default(0) @map("skip_rate") @db.Decimal(5, 4)
+  choiceARate           Decimal  @default(0) @map("choice_a_rate") @db.Decimal(5, 4)
+  choiceBRate           Decimal  @default(0) @map("choice_b_rate") @db.Decimal(5, 4)
+  choiceCRate           Decimal  @default(0) @map("choice_c_rate") @db.Decimal(5, 4)
+  choiceDRate           Decimal  @default(0) @map("choice_d_rate") @db.Decimal(5, 4)
+  difficultyIndex       Decimal? @map("difficulty_index") @db.Decimal(5, 4)
+  discriminationIndex   Decimal? @map("discrimination_index") @db.Decimal(5, 4)
+  qualityScore          Decimal? @map("quality_score") @db.Decimal(5, 2)
+  flagCount             Int      @default(0) @map("flag_count")
+  bookmarkCount         Int      @default(0) @map("bookmark_count")
+  lastComputedAt        DateTime? @map("last_computed_at") @db.Timestamptz
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([qualityScore])
+  @@index([accuracyRate])
+  @@index([discriminationIndex])
+  @@map("question_statistics")
+}
+
+/// AI-generated educational content (requires human review before display).
+model QuestionAiContent {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId              String   @unique @db.Uuid @map("question_id")
+  aiHint                  String?  @map("ai_hint")
+  aiHintApproved          Boolean  @default(false) @map("ai_hint_approved")
+  aiExplanation           String?  @map("ai_explanation")
+  aiExplanationApproved   Boolean  @default(false) @map("ai_explanation_approved")
+  aiStepSolution          Json?    @map("ai_step_solution")
+  aiStepApproved          Boolean  @default(false) @map("ai_step_approved")
+  aiCommonMistakes        String[] @map("ai_common_mistakes")
+  aiMnemonics             String[] @map("ai_mnemonics")
+  aiRealWorldContext      String?  @map("ai_real_world_context")
+  aiPrerequisiteConcepts  String[] @map("ai_prerequisite_concepts")
+  aiModelUsed             String?  @db.VarChar(100) @map("ai_model_used")
+  aiGeneratedAt           DateTime? @map("ai_generated_at") @db.Timestamptz
+  aiPromptVersion         Int?     @map("ai_prompt_version") @db.SmallInt
+  reviewerId              String?  @db.Uuid @map("reviewer_id")
+  reviewedAt              DateTime? @map("reviewed_at") @db.Timestamptz
+  overallApproved         Boolean  @default(false) @map("overall_approved")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_ai_content")
+}
+
+/// Human-authored pedagogical intelligence (common mistakes, alt solutions).
+model QuestionIntelligence {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId           String   @unique @db.Uuid @map("question_id")
+  commonMistakes       Json?    @map("common_mistakes")
+  alternativeSolutions Json?    @map("alternative_solutions")
+  studyTips            String[] @map("study_tips")
+  examineerNotes       String?  @map("examineer_notes")
+  memoryTricks         String[] @map("memory_tricks")
+  timeSavingTips       String?  @map("time_saving_tips")
+  authoredBy           String?  @db.Uuid @map("authored_by")
+  reviewedBy           String?  @db.Uuid @map("reviewed_by")
+  isApproved           Boolean  @default(false) @map("is_approved")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_intelligence")
+}
+
+/// Immutable version history for every question edit.
+model QuestionVersion {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId      String     @db.Uuid @map("question_id")
+  versionNumber   Int        @map("version_number") @db.SmallInt
+  contentSnapshot Json       @map("content_snapshot")
+  changeSummary   String?    @map("change_summary")
+  changeType      ChangeType @default(edit) @map("change_type")
+  changedBy       String     @db.Uuid @map("changed_by")
+  reviewedBy      String?    @db.Uuid @map("reviewed_by")
+  reviewNotes     String?    @map("review_notes")
+  isCurrent       Boolean    @default(false) @map("is_current")
+  publishedAt     DateTime?  @map("published_at") @db.Timestamptz
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  changedByUser  User @relation("VersionChangedBy", fields: [changedBy], references: [id], onDelete: Restrict)
+  reviewedByUser User? @relation("VersionReviewedBy", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@unique([questionId, versionNumber])
+  @@index([changedBy])
+  @@index([questionId, createdAt])
+  @@map("question_versions")
+}
+
+/// Immutable workflow event log: every status transition for a question.
+model QuestionReviewWorkflow {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId    String         @db.Uuid @map("question_id")
+  versionNumber Int?           @map("version_number") @db.SmallInt
+  fromStatus    QuestionStatus? @map("from_status")
+  toStatus      QuestionStatus  @map("to_status")
+  actionType    ReviewAction    @map("action_type")
+  actionBy      String          @db.Uuid @map("action_by")
+  notes         String?
+  occurredAt    DateTime        @default(now()) @map("occurred_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  actionByUser User @relation(fields: [actionBy], references: [id], onDelete: Restrict)
+
+  @@index([questionId, occurredAt])
+  @@index([actionBy, occurredAt])
+  @@index([toStatus, occurredAt])
+  @@map("question_review_workflow")
+}
+
+// ============================================================================
+// MODULE 4B: ADMIN CMS LAYER (Sprint 2.7)
+// ============================================================================
+// Operational collaboration tables for the Admin CMS. These sit ON TOP of the
+// Question Bank: editing locks, reviewer assignment, threaded review comments,
+// and internal editorial notes. The question lifecycle itself remains owned by
+// the Question Bank (Sprint 2.6); these tables add the human-coordination layer.
+
+/// Pessimistic editing lock. At most one ACTIVE (released_at IS NULL, not
+/// expired) lock per question, enforced by a partial unique index in the
+/// migration. Prevents two editors clobbering each other in the CMS.
+model QuestionLock {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId  String    @db.Uuid @map("question_id")
+  lockedBy    String    @db.Uuid @map("locked_by")
+  reason      String?
+  acquiredAt  DateTime  @default(now()) @map("acquired_at") @db.Timestamptz
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
+  releasedAt  DateTime? @map("released_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  locker   User     @relation("QuestionLockHolder", fields: [lockedBy], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([lockedBy])
+  @@index([expiresAt])
+  @@map("question_locks")
+}
+
+/// Reviewer assignment for a question at a specific review stage. A question
+/// may have at most one ACTIVE (completed_at IS NULL) assignment per stage,
+/// enforced by a partial unique index in the migration.
+model ReviewAssignment {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId   String       @db.Uuid @map("question_id")
+  assigneeId   String       @db.Uuid @map("assignee_id")
+  assignedBy   String       @db.Uuid @map("assigned_by")
+  stage        ReviewStage  @map("stage")
+  status       AssignmentStatus @default(pending) @map("status")
+  dueAt        DateTime?    @map("due_at") @db.Timestamptz
+  assignedAt   DateTime     @default(now()) @map("assigned_at") @db.Timestamptz
+  completedAt  DateTime?    @map("completed_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  assignee User     @relation("AssignmentAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+  assigner User     @relation("AssignmentAssigner", fields: [assignedBy], references: [id], onDelete: Restrict)
+
+  @@index([questionId, stage])
+  @@index([assigneeId, status])
+  @@index([status, dueAt])
+  @@map("review_assignments")
+}
+
+/// Threaded review comment on a question, optionally scoped to a review stage
+/// and optionally a reply to a parent comment. Resolvable for review tracking.
+model ReviewComment {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId  String       @db.Uuid @map("question_id")
+  authorId    String       @db.Uuid @map("author_id")
+  parentId    String?      @db.Uuid @map("parent_id")
+  stage       ReviewStage? @map("stage")
+  body        String
+  isResolved  Boolean      @default(false) @map("is_resolved")
+  resolvedBy  String?      @db.Uuid @map("resolved_by")
+  resolvedAt  DateTime?    @map("resolved_at") @db.Timestamptz
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt   DateTime?    @map("deleted_at") @db.Timestamptz
+
+  question   Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  commenter  User            @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  resolver   User?           @relation("CommentResolver", fields: [resolvedBy], references: [id], onDelete: SetNull)
+  parent     ReviewComment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    ReviewComment[] @relation("CommentThread")
+
+  @@index([questionId, createdAt])
+  @@index([authorId])
+  @@index([parentId])
+  @@map("review_comments")
+}
+
+/// Internal editorial note attached to a question. Distinct from review
+/// comments: notes are persistent editorial guidance (style, sourcing, PRC
+/// alignment) rather than threaded review discussion.
+model EditorialNote {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId  String   @db.Uuid @map("question_id")
+  authorId    String   @db.Uuid @map("author_id")
+  category    EditorialNoteCategory @default(general) @map("category")
+  body        String
+  isPinned    Boolean  @default(false) @map("is_pinned")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  noter    User     @relation("EditorialNoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([questionId, isPinned])
+  @@index([authorId])
+  @@map("editorial_notes")
+}
+
+// ============================================================================
+// MODULE 5: REFERENCE & KNOWLEDGE LAYER
+// ============================================================================
+
+/// Civil engineering reference book catalog.
+model ReferenceBook {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String   @unique
+  authors         String[]
+  edition         String?  @db.VarChar(50)
+  publisher       String?  @db.VarChar(255)
+  publicationYear Int?     @map("publication_year") @db.SmallInt
+  isbn13          String?  @unique @db.Char(13) @map("isbn_13")
+  isbn10          String?  @unique @db.Char(10) @map("isbn_10")
+  subjectArea     String?  @db.VarChar(100) @map("subject_area")
+  coverImageUrl   String?  @map("cover_image_url")
+  description     String?
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  questionReferences QuestionReference[]
+
+  @@map("reference_books")
+}
+
+/// Junction: question ↔ reference book with page granularity.
+model QuestionReference {
+  id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId      String @db.Uuid @map("question_id")
+  referenceBookId String @db.Uuid @map("reference_book_id")
+  pageNumber      Int?   @map("page_number") @db.SmallInt
+  pageRange       String? @db.VarChar(20) @map("page_range")
+  sectionRef      String? @db.VarChar(50) @map("section_ref")
+  relevanceNote   String? @map("relevance_note")
+  isPrimary       Boolean @default(true) @map("is_primary")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  question      Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  referenceBook ReferenceBook @relation(fields: [referenceBookId], references: [id], onDelete: Restrict)
+
+  @@unique([questionId, referenceBookId])
+  @@index([referenceBookId])
+  @@map("question_references")
+}
+
+/// Engineering formula catalog with structured variable definitions.
+model FormulaLibrary {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String   @unique @db.VarChar(200)
+  slug                String   @unique @db.VarChar(100)
+  subjectId           String   @db.Uuid @map("subject_id")
+  topicId             String?  @db.Uuid @map("topic_id")
+  expressionText      String   @map("expression_text")
+  expressionLatex     String   @map("expression_latex")
+  variables           Json     // [{symbol, name, unit, description}]
+  unitsSystem         String   @default("SI") @db.VarChar(10) @map("units_system")
+  imperialExpression  String?  @map("imperial_expression")
+  derivation          String?
+  assumptions         String[]
+  limitations         String?
+  typicalApplications String[] @map("typical_applications")
+  exampleProblem      String?  @map("example_problem")
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  subject  Subject  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  topic    Topic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  questionFormulas QuestionFormula[]
+
+  @@index([subjectId])
+  @@map("formula_library")
+}
+
+/// Junction: question ↔ formula with usage context.
+model QuestionFormula {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId  String  @db.Uuid @map("question_id")
+  formulaId   String  @db.Uuid @map("formula_id")
+  usageNote   String? @map("usage_note")
+  stepNumber  Int?    @map("step_number") @db.SmallInt
+  isPrimary   Boolean @default(true) @map("is_primary")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  question Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  formula  FormulaLibrary @relation(fields: [formulaId], references: [id], onDelete: Restrict)
+
+  @@unique([questionId, formulaId])
+  @@index([formulaId])
+  @@map("question_formulas")
+}
+
+/// Engineering codes and standards catalog.
+model EngineeringCode {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codeName         String      @unique @db.VarChar(200) @map("code_name")
+  codeAbbreviation String      @unique @db.VarChar(30) @map("code_abbreviation")
+  codeType         EngCodeType @map("code_type")
+  issuingBody      String      @db.VarChar(200) @map("issuing_body")
+  editionYear      Int         @map("edition_year") @db.SmallInt
+  editionLabel     String?     @db.VarChar(50) @map("edition_label")
+  country          String      @default("PH") @db.Char(2)
+  isPhilippineCode Boolean     @default(false) @map("is_philippine_code")
+  isActive         Boolean     @default(true) @map("is_active")
+  supersededById   String?     @db.Uuid @map("superseded_by_id")
+  coverUrl         String?     @map("cover_url")
+  officialUrl      String?     @map("official_url")
+  description      String?
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  supersededBy    EngineeringCode?       @relation("CodeSupersession", fields: [supersededById], references: [id])
+  supersedes      EngineeringCode[]      @relation("CodeSupersession")
+  codeReferences  QuestionCodeReference[]
+
+  @@index([codeType])
+  @@index([isPhilippineCode])
+  @@map("engineering_codes")
+}
+
+/// Junction: question ↔ engineering code at section level.
+model QuestionCodeReference {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId        String      @db.Uuid @map("question_id")
+  engineeringCodeId String      @db.Uuid @map("engineering_code_id")
+  sectionNumber     String?     @db.VarChar(30) @map("section_number")
+  clauseTitle       String?     @db.VarChar(300) @map("clause_title")
+  requirementType   CodeReqType @default(reference) @map("requirement_type")
+  relevanceNote     String?     @map("relevance_note")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  question        Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  engineeringCode EngineeringCode @relation(fields: [engineeringCodeId], references: [id], onDelete: Restrict)
+
+  @@index([questionId, engineeringCodeId])
+  @@index([engineeringCodeId, sectionNumber])
+  @@map("question_code_references")
+}
+
+/// Flexible keyword tags for cross-cutting question classification.
+model Tag {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String      @unique @db.VarChar(100)
+  slug        String      @unique @db.VarChar(80)
+  category    TagCategory @default(general)
+  description String?
+  colorHex    String?     @db.Char(7) @map("color_hex")
+  usageCount  Int         @default(0) @map("usage_count")
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  questionTags QuestionTag[]
+
+  @@index([category])
+  @@map("tags")
+}
+
+/// Junction: tag ↔ question.
+model QuestionTag {
+  questionId String   @db.Uuid @map("question_id")
+  tagId      String   @db.Uuid @map("tag_id")
+  taggedBy   String?  @db.Uuid @map("tagged_by")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Restrict)
+
+  @@id([questionId, tagId])
+  @@index([tagId])
+  @@map("question_tags")
+}
+
+/// Inter-question relationship graph (related, prereq, recommended_next).
+model QuestionRelated {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fromQuestionId String               @db.Uuid @map("from_question_id")
+  toQuestionId   String               @db.Uuid @map("to_question_id")
+  relationType   QuestionRelationType @map("relation_type")
+  relationNote   String?              @map("relation_note")
+  weight         Decimal              @default(1.00) @db.Decimal(3, 2)
+  createdBy      String?              @db.Uuid @map("created_by")
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz
+
+  fromQuestion Question @relation("RelatedFrom", fields: [fromQuestionId], references: [id], onDelete: Cascade)
+  toQuestion   Question @relation("RelatedTo", fields: [toQuestionId], references: [id], onDelete: Cascade)
+
+  @@unique([fromQuestionId, toQuestionId])
+  @@index([fromQuestionId, relationType])
+  @@index([toQuestionId])
+  @@map("question_related")
+}
+
+// ============================================================================
+// MODULE 9: SUBSCRIPTION & BILLING (Sprint 2.5)
+// ============================================================================
+
+/// Billing cadence for a subscription plan.
+enum PlanInterval {
+  free
+  monthly
+  quarterly
+  annual
+  lifetime
+
+  @@map("plan_interval")
+}
+
+/// Lifecycle state of a user's subscription.
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  grace
+  canceled
+  expired
+
+  @@map("subscription_status")
+}
+
+/// Lifecycle state of a payment attempt.
+enum PaymentStatus {
+  pending
+  processing
+  succeeded
+  failed
+  refunded
+  canceled
+
+  @@map("payment_status")
+}
+
+/// Supported payment providers (provider abstraction).
+enum PaymentProviderType {
+  paymongo
+  xendit
+  stripe
+  mock
+
+  @@map("payment_provider_type")
+}
+
+/// Supported payment methods (Philippine + international).
+enum PaymentMethodType {
+  gcash
+  maya
+  online_banking
+  qrph
+  credit_card
+  debit_card
+
+  @@map("payment_method_type")
+}
+
+/// Invoice lifecycle state.
+enum InvoiceStatus {
+  draft
+  issued
+  paid
+  void
+
+  @@map("invoice_status")
+}
+
+/// Webhook processing state (idempotency + replay protection).
+enum WebhookStatus {
+  received
+  processed
+  duplicate
+  failed
+  invalid_signature
+
+  @@map("webhook_status")
+}
+
+/// Purchasable subscription plans. Maps tier + interval + price.
+model SubscriptionPlan {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String       @db.VarChar(120)
+  slug          String       @unique @db.VarChar(60)
+  tier          SubscriptionTier
+  interval      PlanInterval
+  /// Price in the smallest currency unit (centavos for PHP). 0 for free.
+  priceMinor    Int          @map("price_minor")
+  currency      String       @default("PHP") @db.Char(3)
+  /// Duration in days. Null for lifetime/free.
+  durationDays  Int?         @map("duration_days")
+  trialDays     Int          @default(0) @map("trial_days")
+  features      Json         @default("[]")
+  isActive      Boolean      @default(true) @map("is_active")
+  sortOrder     Int          @default(0) @map("sort_order") @db.SmallInt
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime?    @map("deleted_at") @db.Timestamptz
+
+  subscriptions Subscription[]
+
+  @@index([tier])
+  @@index([interval])
+  @@index([isActive])
+  @@map("subscription_plans")
+}
+
+/// A user's subscription to a plan. One active subscription per user enforced
+/// in application logic; history is retained (multiple rows over time).
+model Subscription {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String             @db.Uuid @map("user_id")
+  planId            String             @db.Uuid @map("plan_id")
+  status            SubscriptionStatus @default(trialing)
+  /// Current paid period boundaries.
+  currentPeriodStart DateTime?         @map("current_period_start") @db.Timestamptz
+  currentPeriodEnd   DateTime?         @map("current_period_end") @db.Timestamptz
+  trialEndsAt       DateTime?          @map("trial_ends_at") @db.Timestamptz
+  /// When grace period (post past_due) ends; after this → expired.
+  graceEndsAt       DateTime?          @map("grace_ends_at") @db.Timestamptz
+  canceledAt        DateTime?          @map("canceled_at") @db.Timestamptz
+  /// If true, do not auto-renew at period end.
+  cancelAtPeriodEnd Boolean            @default(false) @map("cancel_at_period_end")
+  autoRenew         Boolean            @default(true) @map("auto_renew")
+  /// Provider-side subscription/customer identifiers (nullable for one-off).
+  providerType      PaymentProviderType? @map("provider_type")
+  providerRef       String?            @map("provider_ref")
+  version           Int                @default(0)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan     SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  payments Payment[]
+  invoices Invoice[]
+
+  @@index([userId])
+  @@index([planId])
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@index([userId, status])
+  @@map("subscriptions")
+}
+
+/// A payment attempt against a subscription (or standalone purchase).
+model Payment {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String              @db.Uuid @map("user_id")
+  subscriptionId  String?             @db.Uuid @map("subscription_id")
+  amountMinor     Int                 @map("amount_minor")
+  currency        String              @default("PHP") @db.Char(3)
+  status          PaymentStatus       @default(pending)
+  providerType    PaymentProviderType @map("provider_type")
+  methodType      PaymentMethodType?  @map("method_type")
+  /// Provider-side payment intent / charge id.
+  providerRef     String?             @map("provider_ref")
+  /// Client-supplied idempotency key — guarantees at-most-once creation.
+  idempotencyKey  String?             @unique @db.VarChar(120) @map("idempotency_key")
+  /// Checkout URL returned by the provider for redirect-based methods.
+  checkoutUrl     String?             @map("checkout_url")
+  failureReason   String?             @map("failure_reason")
+  paidAt          DateTime?           @map("paid_at") @db.Timestamptz
+  refundedAt      DateTime?           @map("refunded_at") @db.Timestamptz
+  metadata        Json                @default("{}")
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  invoice      Invoice?
+  webhooks     PaymentWebhook[]
+  logs         PaymentLog[]
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([providerRef])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+/// An invoice issued for a payment. Immutable once issued.
+model Invoice {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String        @db.Uuid @map("user_id")
+  subscriptionId String?       @db.Uuid @map("subscription_id")
+  paymentId      String?       @unique @db.Uuid @map("payment_id")
+  /// Human-readable invoice number, e.g. INV-2026-000123.
+  number         String        @unique @db.VarChar(40)
+  status         InvoiceStatus @default(draft)
+  subtotalMinor  Int           @map("subtotal_minor")
+  taxMinor       Int           @default(0) @map("tax_minor")
+  totalMinor     Int           @map("total_minor")
+  currency       String        @default("PHP") @db.Char(3)
+  /// Line items snapshot (plan name, price, period).
+  lineItems      Json          @default("[]")
+  /// Receipt URL (PDF) once generated.
+  receiptUrl     String?       @map("receipt_url")
+  issuedAt       DateTime?     @map("issued_at") @db.Timestamptz
+  paidAt         DateTime?     @map("paid_at") @db.Timestamptz
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  payment      Payment?      @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([number])
+  @@map("invoices")
+}
+
+/// Raw inbound provider webhooks — idempotency + replay protection.
+model PaymentWebhook {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  providerType  PaymentProviderType @map("provider_type")
+  /// Provider's unique event id — unique constraint enforces idempotency.
+  eventId       String              @db.VarChar(200) @map("event_id")
+  eventType     String              @db.VarChar(100) @map("event_type")
+  paymentId     String?             @db.Uuid @map("payment_id")
+  status        WebhookStatus       @default(received)
+  /// Whether the HMAC signature verified.
+  signatureValid Boolean            @default(false) @map("signature_valid")
+  payload       Json
+  error         String?
+  receivedAt    DateTime            @default(now()) @map("received_at") @db.Timestamptz
+  processedAt   DateTime?           @map("processed_at") @db.Timestamptz
+
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([providerType, eventId])
+  @@index([status])
+  @@index([eventType])
+  @@index([receivedAt])
+  @@map("payment_webhooks")
+}
+
+/// Append-only audit log of every payment state transition.
+model PaymentLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentId   String   @db.Uuid @map("payment_id")
+  action      String   @db.VarChar(80)
+  fromStatus  String?  @db.VarChar(40) @map("from_status")
+  toStatus    String?  @db.VarChar(40) @map("to_status")
+  actorId     String?  @db.Uuid @map("actor_id")
+  detail      Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([createdAt])
+  @@map("payment_logs")
+}
+
+// ============================================================================
+// MODULE 10: CONTENT KNOWLEDGE BASE (Sprint 2.8)
+// ============================================================================
+// The authoritative Content Knowledge Base. Ingests the official enterprise
+// documentation (Books 1–15) as versioned KnowledgeDocuments, and exposes the
+// structured governing entities — Learning Objectives, Blueprints, and
+// Misconceptions — that every future question, explanation, diagram, and AI
+// response must validate against. Formulas reuse the existing FormulaLibrary
+// model (Module 5); this module adds the LO/Blueprint/Misconception spine and
+// the cross-reference dependency graph. All additive; no existing model altered.
+
+/// Lifecycle status shared by knowledge-base entities.
+enum KnowledgeStatus {
+  draft
+  in_review
+  approved
+  published
+  deprecated
+  archived
+
+  @@map("knowledge_status")
+}
+
+/// The category of an ingested enterprise document (Books 1–15).
+enum KnowledgeDocumentType {
+  authoring_bible
+  knowledge_map
+  question_writing_standards
+  formula_library
+  engineering_codes
+  question_templates
+  distractor_design
+  explanation_standards
+  psychometric_standards
+  ai_content_generation
+  learning_objectives
+  question_blueprints
+  misconceptions
+  diagram_standards
+  editorial_style
+
+  @@map("knowledge_document_type")
+}
+
+/// Bloom's taxonomy cognitive level (mirrors BloomLevel; kept local so LO
+/// records are self-describing without a hard FK into the question module).
+enum LearningObjectiveStatus {
+  draft
+  in_review
+  approved
+  published
+  deprecated
+  archived
+
+  @@map("learning_objective_status")
+}
+
+/// The kind of edge in the knowledge dependency graph.
+enum CrossReferenceType {
+  lo_to_formula
+  lo_to_blueprint
+  lo_to_misconception
+  blueprint_to_lo
+  blueprint_to_formula
+  misconception_to_lo
+  formula_to_lo
+  document_to_entity
+  lo_prerequisite
+
+  @@map("cross_reference_type")
+}
+
+/// An ingested official enterprise document (one of Books 1–15). The latest
+/// published version is the authoritative specification for its domain.
+model KnowledgeDocument {
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookNumber    Int                   @map("book_number") @db.SmallInt
+  documentType  KnowledgeDocumentType @map("document_type")
+  title         String                @db.VarChar(300)
+  slug          String                @unique @db.VarChar(160)
+  description   String?
+  status        KnowledgeStatus       @default(draft)
+  currentVersion Int                  @default(1) @map("current_version") @db.SmallInt
+  latestSemver  String                @default("1.0.0") @map("latest_semver") @db.VarChar(20)
+  sourceFilename String?              @map("source_filename")
+  ownerTeam     String?               @map("owner_team") @db.VarChar(120)
+  createdBy     String?               @db.Uuid @map("created_by")
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime?             @map("deleted_at") @db.Timestamptz
+
+  creator  User?                       @relation("KnowledgeDocCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  versions KnowledgeDocumentVersion[]
+  sections KnowledgeSection[]
+
+  @@unique([bookNumber])
+  @@index([documentType])
+  @@index([status])
+  @@map("knowledge_documents")
+}
+
+/// An immutable snapshot of a KnowledgeDocument at a specific version. Holds the
+/// full extracted text + a content checksum so re-ingestion is idempotent and
+/// auditable.
+model KnowledgeDocumentVersion {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId    String          @db.Uuid @map("document_id")
+  versionNumber Int             @map("version_number") @db.SmallInt
+  semver        String          @db.VarChar(20)
+  status        KnowledgeStatus @default(draft)
+  contentText   String          @map("content_text")
+  contentChecksum String        @map("content_checksum") @db.VarChar(64)
+  sectionCount  Int             @default(0) @map("section_count") @db.SmallInt
+  wordCount     Int             @default(0) @map("word_count")
+  changeSummary String?         @map("change_summary")
+  ingestedBy    String?         @db.Uuid @map("ingested_by")
+  isCurrent     Boolean         @default(false) @map("is_current")
+  publishedAt   DateTime?       @map("published_at") @db.Timestamptz
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  document KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  ingester User?             @relation("KnowledgeDocIngester", fields: [ingestedBy], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId, isCurrent])
+  @@index([contentChecksum])
+  @@map("knowledge_document_versions")
+}
+
+/// A parsed section (chapter/heading) of a knowledge document, used for the
+/// full-text index and for anchoring cross-references to a precise location.
+model KnowledgeSection {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId  String   @db.Uuid @map("document_id")
+  anchor      String   @db.VarChar(120)
+  heading     String   @db.VarChar(400)
+  level       Int      @default(1) @db.SmallInt
+  orderIndex  Int      @map("order_index")
+  bodyText    String   @map("body_text")
+  wordCount   Int      @default(0) @map("word_count")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  document KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, anchor])
+  @@index([documentId, orderIndex])
+  @@map("knowledge_sections")
+}
+
+/// A Learning Objective — the educational spine. Public ID format:
+/// LO-<Subject>-<Topic>-<Subtopic>-<Number> (e.g. LO-STR-001-003-001).
+model LearningObjective {
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId        String                  @unique @db.VarChar(40) @map("public_id")
+  subjectCode     String                  @db.VarChar(3) @map("subject_code")
+  topicCode       String                  @db.VarChar(3) @map("topic_code")
+  subtopicCode    String                  @db.VarChar(3) @map("subtopic_code")
+  sequenceNumber  Int                     @map("sequence_number") @db.SmallInt
+  subjectId       String?                 @db.Uuid @map("subject_id")
+  statement       String
+  bloomLevel      String                  @default("apply") @db.VarChar(20) @map("bloom_level")
+  measurable      Boolean                 @default(true)
+  status          LearningObjectiveStatus @default(draft)
+  currentVersion  Int                     @default(1) @map("current_version") @db.SmallInt
+  semver          String                  @default("1.0.0") @db.VarChar(20)
+  keywords        String[]
+  sourceDocumentId String?                @db.Uuid @map("source_document_id")
+  createdBy       String?                 @db.Uuid @map("created_by")
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt       DateTime?               @map("deleted_at") @db.Timestamptz
+
+  subject  Subject?                   @relation("SubjectLearningObjectives", fields: [subjectId], references: [id], onDelete: SetNull)
+  creator  User?                      @relation("LoCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  versions LearningObjectiveVersion[]
+
+  @@index([subjectCode, topicCode, subtopicCode])
+  @@index([status])
+  @@index([subjectId])
+  @@map("learning_objectives")
+}
+
+/// Immutable version snapshot of a Learning Objective.
+model LearningObjectiveVersion {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  objectiveId   String   @db.Uuid @map("objective_id")
+  versionNumber Int      @map("version_number") @db.SmallInt
+  semver        String   @db.VarChar(20)
+  snapshot      Json
+  changeSummary String?  @map("change_summary")
+  changedBy     String?  @db.Uuid @map("changed_by")
+  isCurrent     Boolean  @default(false) @map("is_current")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  objective LearningObjective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+
+  @@unique([objectiveId, versionNumber])
+  @@index([objectiveId, isCurrent])
+  @@map("learning_objective_versions")
+}
+
+/// A Question Blueprint. Public ID format:
+/// BP-<Subject>-<Topic>-<Subtopic>-<BlueprintType>-<Number>.
+model QuestionBlueprint {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId           String          @unique @db.VarChar(50) @map("public_id")
+  subjectCode        String          @db.VarChar(3) @map("subject_code")
+  topicCode          String          @db.VarChar(3) @map("topic_code")
+  subtopicCode       String          @db.VarChar(3) @map("subtopic_code")
+  blueprintType      String          @db.VarChar(3) @map("blueprint_type")
+  sequenceNumber     Int             @map("sequence_number") @db.SmallInt
+  name               String          @db.VarChar(300)
+  description        String?
+  primaryObjectiveId String?         @db.Uuid @map("primary_objective_id")
+  structure          Json
+  difficultyBand     String?         @db.VarChar(20) @map("difficulty_band")
+  status             KnowledgeStatus @default(draft)
+  currentVersion     Int             @default(1) @map("current_version") @db.SmallInt
+  semver             String          @default("1.0.0") @db.VarChar(20)
+  sourceDocumentId   String?         @db.Uuid @map("source_document_id")
+  createdBy          String?         @db.Uuid @map("created_by")
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt          DateTime?       @map("deleted_at") @db.Timestamptz
+
+  creator User? @relation("BlueprintCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([subjectCode, topicCode, subtopicCode])
+  @@index([blueprintType])
+  @@index([status])
+  @@map("question_blueprints")
+}
+
+/// A Misconception. Public ID format:
+/// MC-<Subject>-<Topic>-<Subtopic>-<Category>-<Number>.
+model Misconception {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId           String          @unique @db.VarChar(50) @map("public_id")
+  subjectCode        String          @db.VarChar(3) @map("subject_code")
+  topicCode          String          @db.VarChar(3) @map("topic_code")
+  subtopicCode       String          @db.VarChar(3) @map("subtopic_code")
+  category           String          @db.VarChar(3)
+  sequenceNumber     Int             @map("sequence_number") @db.SmallInt
+  title              String          @db.VarChar(300)
+  description        String
+  whyItHappens       String?         @map("why_it_happens")
+  correction         String?
+  primaryObjectiveId String?         @db.Uuid @map("primary_objective_id")
+  status             KnowledgeStatus @default(draft)
+  currentVersion     Int             @default(1) @map("current_version") @db.SmallInt
+  semver             String          @default("1.0.0") @db.VarChar(20)
+  sourceDocumentId   String?         @db.Uuid @map("source_document_id")
+  createdBy          String?         @db.Uuid @map("created_by")
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt          DateTime?       @map("deleted_at") @db.Timestamptz
+
+  creator User? @relation("MisconceptionCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([subjectCode, topicCode, subtopicCode])
+  @@index([category])
+  @@index([status])
+  @@map("misconceptions")
+}
+
+/// An edge in the knowledge dependency graph. Connects two knowledge entities
+/// (referenced by their UUIDs + a denormalized public ID for fast traversal)
+/// so the cross-reference and dependency-graph engines can resolve relationships
+/// without N+1 lookups.
+model KnowledgeCrossReference {
+  id           String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referenceType CrossReferenceType @map("reference_type")
+  fromType     String             @db.VarChar(30) @map("from_type")
+  fromId       String             @db.Uuid @map("from_id")
+  fromPublicId String?            @db.VarChar(50) @map("from_public_id")
+  toType       String             @db.VarChar(30) @map("to_type")
+  toId         String             @db.Uuid @map("to_id")
+  toPublicId   String?            @db.VarChar(50) @map("to_public_id")
+  weight       Int                @default(1) @db.SmallInt
+  note         String?
+  createdBy    String?            @db.Uuid @map("created_by")
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([fromType, fromId, toType, toId, referenceType])
+  @@index([fromType, fromId])
+  @@index([toType, toId])
+  @@index([referenceType])
+  @@map("knowledge_cross_references")
+}
+
+// ============================================================================
+// MODULE 11: AI CONTENT GENERATION ENGINE (Sprint 2.9)
+// ============================================================================
+// The enterprise AI Content Generation Engine. Generates questions, variants,
+// explanations, solution steps, and distractors grounded EXCLUSIVELY in the
+// Sprint 2.8 Knowledge Base (Learning Objectives, Blueprints, Formulas,
+// Misconceptions, Editorial Standards). Every generation is recorded, every
+// output runs the validation pipeline, and only validated drafts are handed to
+// the CMS. All additive; no existing model altered.
+
+/// Lifecycle of a single generation request.
+enum GenerationStatus {
+  pending
+  generating
+  validating
+  validated
+  rejected
+  promoted    // accepted into the Question Bank as a draft
+  failed
+
+  @@map("generation_status")
+}
+
+/// What the engine was asked to produce.
+enum GenerationKind {
+  question_from_lo
+  question_from_blueprint
+  numerical_variant
+  conceptual_variant
+  explanation
+  solution_steps
+  distractors
+
+  @@map("generation_kind")
+}
+
+/// Outcome of the validation pipeline for a generated artifact.
+enum GenerationValidationOutcome {
+  passed
+  passed_with_warnings
+  failed
+
+  @@map("generation_validation_outcome")
+}
+
+/// A single AI generation request + its produced artifact. The authoritative
+/// record of "what was asked, what was produced, and whether it passed."
+model AiGenerationRequest {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind              GenerationKind
+  status            GenerationStatus @default(pending)
+  // Grounding references into the Knowledge Base (public IDs).
+  learningObjectiveId String?        @db.VarChar(40) @map("learning_objective_id")
+  blueprintId       String?          @db.VarChar(50) @map("blueprint_id")
+  subjectCode       String?          @db.VarChar(3) @map("subject_code")
+  topicCode         String?          @db.VarChar(3) @map("topic_code")
+  difficultyBand    String?          @db.VarChar(20) @map("difficulty_band")
+  // Inputs and outputs.
+  parameters        Json             // request parameters (seed, variant options, count)
+  prompt            String?          // the assembled prompt (audit)
+  output            Json?            // the produced artifact(s)
+  validationOutcome GenerationValidationOutcome? @map("validation_outcome")
+  validationReport  Json?            @map("validation_report")
+  promotedQuestionId String?         @db.Uuid @map("promoted_question_id")
+  providerName      String           @default("deterministic") @db.VarChar(40) @map("provider_name")
+  model             String?          @db.VarChar(80)
+  seed              String?          @db.VarChar(64)
+  contentHash       String?          @db.VarChar(64) @map("content_hash")
+  errorMessage      String?          @map("error_message")
+  requestedBy       String?          @db.Uuid @map("requested_by")
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  completedAt       DateTime?        @map("completed_at") @db.Timestamptz
+
+  requester  User?                  @relation("AiGenerationRequester", fields: [requestedBy], references: [id], onDelete: SetNull)
+  auditLogs  AiGenerationAuditLog[]
+  variants   AiGeneratedVariant[]
+
+  @@index([status])
+  @@index([kind])
+  @@index([learningObjectiveId])
+  @@index([requestedBy])
+  @@index([contentHash])
+  @@map("ai_generation_requests")
+}
+
+/// A produced variant belonging to a generation request (numerical/conceptual
+/// variants share a parent request). Holds the question draft payload.
+model AiGeneratedVariant {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId     String   @db.Uuid @map("request_id")
+  variantIndex  Int      @map("variant_index") @db.SmallInt
+  variantType   String   @db.VarChar(20) @map("variant_type") // numerical | conceptual | base
+  payload       Json     // the draft question (stem, choices, correct, explanation, refs)
+  contentHash   String   @db.VarChar(64) @map("content_hash")
+  isDuplicate   Boolean  @default(false) @map("is_duplicate")
+  validationOutcome GenerationValidationOutcome? @map("validation_outcome")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  request AiGenerationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, variantIndex])
+  @@index([contentHash])
+  @@map("ai_generated_variants")
+}
+
+/// Append-only audit log of every pipeline stage for a generation request.
+model AiGenerationAuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId  String   @db.Uuid @map("request_id")
+  stage      String   @db.VarChar(40)  // prompt_built | generated | validated | promoted | rejected
+  status     String   @db.VarChar(20)
+  detail     Json?
+  message    String?
+  actorId    String?  @db.Uuid @map("actor_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  request AiGenerationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([stage])
+  @@map("ai_generation_audit_logs")
+}
+
+// ============================================================================
+// MODULE 12: STUDENT LEARNING PLATFORM (Sprint 3.1)
+// ============================================================================
+// The student-facing learning platform. All models are owned by a user
+// (ownership-scoped) and additive. Covers practice attempts & sessions,
+// engagement (bookmarks/favorites/recently-viewed), progress & mastery,
+// study planning, gamification (XP/levels/achievements), and knowledge-gap /
+// learning-path generation. No existing model is altered.
+
+enum AttemptOutcome {
+  correct
+  incorrect
+  skipped
+
+  @@map("attempt_outcome")
+}
+
+enum PracticeSessionMode {
+  subject
+  topic
+  learning_objective
+  blueprint
+  difficulty
+  recommended
+  mixed
+
+  @@map("practice_session_mode")
+}
+
+enum PracticeSessionStatus {
+  active
+  completed
+  abandoned
+
+  @@map("practice_session_status")
+}
+
+enum StudyGoalPeriod {
+  daily
+  weekly
+  monthly
+
+  @@map("study_goal_period")
+}
+
+enum StudyTaskStatus {
+  pending
+  in_progress
+  completed
+  skipped
+
+  @@map("study_task_status")
+}
+
+enum MasteryTier {
+  novice
+  developing
+  proficient
+  advanced
+  mastered
+
+  @@map("mastery_tier")
+}
+
+enum AchievementKind {
+  streak
+  volume
+  accuracy
+  mastery
+  milestone
+  speed
+
+  @@map("achievement_kind")
+}
+
+enum KnowledgeGapSeverity {
+  minor
+  moderate
+  critical
+
+  @@map("knowledge_gap_severity")
+}
+
+/// Every answer a student submits. The atomic unit of progress & analytics.
+model QuestionAttempt {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String         @db.Uuid @map("user_id")
+  questionId      String         @db.Uuid @map("question_id")
+  sessionId       String?        @db.Uuid @map("session_id")
+  subjectId       String         @db.Uuid @map("subject_id")
+  topicId         String?        @db.Uuid @map("topic_id")
+  subtopicId      String?        @db.Uuid @map("subtopic_id")
+  difficultyLevelId String?      @db.Uuid @map("difficulty_level_id")
+  selectedChoice  String?        @db.VarChar(2) @map("selected_choice")
+  outcome         AttemptOutcome
+  isCorrect       Boolean        @map("is_correct")
+  timeSpentSec    Int            @default(0) @map("time_spent_sec")
+  bloomLevel      String?        @db.VarChar(20) @map("bloom_level")
+  attemptedAt     DateTime       @default(now()) @map("attempted_at") @db.Timestamptz
+
+  user     User     @relation("UserQuestionAttempts", fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation("QuestionAttempts", fields: [questionId], references: [id], onDelete: Cascade)
+  session  PracticeSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, attemptedAt])
+  @@index([userId, subjectId])
+  @@index([userId, topicId])
+  @@index([questionId])
+  @@index([sessionId])
+  @@map("question_attempts")
+}
+
+/// A practice session groups attempts by a chosen mode (subject/topic/etc).
+model PracticeSession {
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String                @db.Uuid @map("user_id")
+  mode          PracticeSessionMode
+  status        PracticeSessionStatus @default(active)
+  // Mode targets (only the relevant one is set).
+  subjectId     String?               @db.Uuid @map("subject_id")
+  topicId       String?               @db.Uuid @map("topic_id")
+  subtopicId    String?               @db.Uuid @map("subtopic_id")
+  learningObjectiveId String?         @db.VarChar(40) @map("learning_objective_id")
+  blueprintId   String?               @db.VarChar(50) @map("blueprint_id")
+  difficultyLevelId String?           @db.Uuid @map("difficulty_level_id")
+  targetCount   Int                   @default(10) @map("target_count")
+  answeredCount Int                   @default(0) @map("answered_count")
+  correctCount  Int                   @default(0) @map("correct_count")
+  totalTimeSec  Int                   @default(0) @map("total_time_sec")
+  startedAt     DateTime              @default(now()) @map("started_at") @db.Timestamptz
+  completedAt   DateTime?             @map("completed_at") @db.Timestamptz
+
+  user     User              @relation("UserPracticeSessions", fields: [userId], references: [id], onDelete: Cascade)
+  attempts QuestionAttempt[]
+
+  @@index([userId, status])
+  @@index([userId, startedAt])
+  @@map("practice_sessions")
+}
+
+/// A bookmarked question (saved to revisit). Unique per user+question.
+model Bookmark {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @db.Uuid @map("user_id")
+  questionId String   @db.Uuid @map("question_id")
+  note       String?  @db.VarChar(500)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user     User     @relation("UserBookmarks", fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation("QuestionBookmarks", fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId, createdAt])
+  @@map("bookmarks")
+}
+
+/// A favorited question (distinct from bookmark: a "best of" list).
+model Favorite {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @db.Uuid @map("user_id")
+  questionId String   @db.Uuid @map("question_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user     User     @relation("UserFavorites", fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation("QuestionFavorites", fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId, createdAt])
+  @@map("favorites")
+}
+
+/// Recently viewed questions (capped ring per user, newest first).
+model RecentlyViewed {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @db.Uuid @map("user_id")
+  questionId String   @db.Uuid @map("question_id")
+  viewedAt   DateTime @default(now()) @map("viewed_at") @db.Timestamptz
+
+  user     User     @relation("UserRecentlyViewed", fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation("QuestionRecentlyViewed", fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId, viewedAt])
+  @@map("recently_viewed")
+}
+
+/// Per-user mastery of a topic (rolling accuracy → tier). One row per user+topic.
+model TopicMastery {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String      @db.Uuid @map("user_id")
+  subjectId     String      @db.Uuid @map("subject_id")
+  topicId       String      @db.Uuid @map("topic_id")
+  attempts      Int         @default(0)
+  correct       Int         @default(0)
+  accuracy      Float       @default(0)
+  avgTimeSec    Float       @default(0) @map("avg_time_sec")
+  masteryScore  Float       @default(0) @map("mastery_score")
+  tier          MasteryTier @default(novice)
+  lastPracticedAt DateTime? @map("last_practiced_at") @db.Timestamptz
+  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation("UserTopicMastery", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([userId, subjectId])
+  @@index([userId, masteryScore])
+  @@map("topic_mastery")
+}
+
+/// A study goal for a period (e.g., 20 questions/day). Progress tracked daily.
+model StudyGoal {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String          @db.Uuid @map("user_id")
+  period      StudyGoalPeriod
+  targetQuestions Int         @map("target_questions")
+  targetMinutes   Int?        @map("target_minutes")
+  isActive    Boolean         @default(true) @map("is_active")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation("UserStudyGoals", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period])
+  @@index([userId, isActive])
+  @@map("study_goals")
+}
+
+/// Daily study streak ledger. One row per user+date with that day's activity.
+model StudyStreakDay {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @db.Uuid @map("user_id")
+  date          DateTime @db.Date
+  questionsAnswered Int  @default(0) @map("questions_answered")
+  minutesStudied Int     @default(0) @map("minutes_studied")
+  goalMet       Boolean  @default(false) @map("goal_met")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation("UserStreakDays", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("study_streak_days")
+}
+
+/// A study plan (calendar of tasks toward the board exam).
+model StudyPlan {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String          @db.Uuid @map("user_id")
+  title       String          @db.VarChar(200)
+  description String?
+  startDate   DateTime        @db.Date @map("start_date")
+  endDate     DateTime        @db.Date @map("end_date")
+  isActive    Boolean         @default(true) @map("is_active")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user  User            @relation("UserStudyPlans", fields: [userId], references: [id], onDelete: Cascade)
+  tasks StudyPlanTask[]
+
+  @@index([userId, isActive])
+  @@map("study_plans")
+}
+
+/// A scheduled task within a study plan.
+model StudyPlanTask {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId      String          @db.Uuid @map("plan_id")
+  userId      String          @db.Uuid @map("user_id")
+  title       String          @db.VarChar(200)
+  scheduledDate DateTime      @db.Date @map("scheduled_date")
+  subjectId   String?         @db.Uuid @map("subject_id")
+  topicId     String?         @db.Uuid @map("topic_id")
+  targetQuestions Int         @default(10) @map("target_questions")
+  status      StudyTaskStatus @default(pending)
+  completedAt DateTime?       @map("completed_at") @db.Timestamptz
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  plan StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  user User      @relation("UserStudyTasks", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, scheduledDate])
+  @@index([planId])
+  @@index([userId, status])
+  @@map("study_plan_tasks")
+}
+
+/// Catalog of achievements (definitions). Seeded; shared across all students.
+model Achievement {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String          @unique @db.VarChar(50)
+  name        String          @db.VarChar(120)
+  description String
+  kind        AchievementKind
+  threshold   Int             @default(0)
+  xpReward    Int             @default(0) @map("xp_reward")
+  icon        String?         @db.VarChar(80)
+  isActive    Boolean         @default(true) @map("is_active")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  awards StudentAchievement[]
+
+  @@index([kind])
+  @@map("achievements")
+}
+
+/// An achievement earned by a student. Unique per user+achievement.
+model StudentAchievement {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @db.Uuid @map("user_id")
+  achievementId String   @db.Uuid @map("achievement_id")
+  earnedAt      DateTime @default(now()) @map("earned_at") @db.Timestamptz
+
+  user        User        @relation("UserAchievements", fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId, earnedAt])
+  @@map("student_achievements")
+}
+
+/// XP and level for a student (gamification). One row per user.
+model StudentXp {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @unique @db.Uuid @map("user_id")
+  totalXp       Int      @default(0) @map("total_xp")
+  level         Int      @default(1)
+  currentStreak Int      @default(0) @map("current_streak")
+  longestStreak Int      @default(0) @map("longest_streak")
+  lastActivityDate DateTime? @db.Date @map("last_activity_date")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation("UserXp", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([totalXp])
+  @@map("student_xp")
+}
+
+/// A detected knowledge gap (weak topic) for a student.
+model KnowledgeGap {
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String               @db.Uuid @map("user_id")
+  subjectId   String               @db.Uuid @map("subject_id")
+  topicId     String               @db.Uuid @map("topic_id")
+  severity    KnowledgeGapSeverity
+  accuracy    Float                @default(0)
+  attempts    Int                  @default(0)
+  recommendation String?
+  resolvedAt  DateTime?            @map("resolved_at") @db.Timestamptz
+  detectedAt  DateTime             @default(now()) @map("detected_at") @db.Timestamptz
+
+  user User @relation("UserKnowledgeGaps", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([userId, severity])
+  @@map("knowledge_gaps")
+}
+
+/// A generated learning path (ordered steps) toward closing gaps / mastery.
+model LearningPath {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @db.Uuid @map("user_id")
+  title       String   @db.VarChar(200)
+  steps       Json     // ordered [{ topicId, reason, targetAccuracy, order }]
+  isActive    Boolean  @default(true) @map("is_active")
+  generatedAt DateTime @default(now()) @map("generated_at") @db.Timestamptz
+
+  user User @relation("UserLearningPaths", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@map("learning_paths")
+}
+
+// ============================================================================
+// MODULE 13: MOCK EXAMINATION ENGINE (Sprint 3.2)
+// ============================================================================
+// Enterprise mock-exam engine. Additive and ownership-scoped. Covers exam
+// templates (composition blueprints), exam attempts (sessions) with timing /
+// autosave / resume / auto-submit, per-question snapshots (randomized question &
+// choice order), scoring with detailed breakdowns (subject/topic/LO/blueprint),
+// and certificate- / leaderboard-ready results. No existing model is altered.
+
+enum ExamKind {
+  full_board          // full CE board simulation across all subjects
+  subject             // single-subject mock
+  custom              // user-defined composition
+  adaptive            // difficulty adapts to performance
+  ai_generated        // questions produced by the AI engine
+
+  @@map("exam_kind")
+}
+
+enum ExamStatus {
+  created
+  in_progress
+  paused
+  submitted
+  expired
+  abandoned
+
+  @@map("exam_status")
+}
+
+enum ExamResultStatus {
+  pass
+  fail
+  pending
+
+  @@map("exam_result_status")
+}
+
+enum ExamQuestionState {
+  unanswered
+  answered
+  flagged
+  skipped
+
+  @@map("exam_question_state")
+}
+
+/// A reusable exam template: how to compose an exam (counts, weighting, timing).
+model ExamTemplate {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String   @unique @db.VarChar(50)
+  name            String   @db.VarChar(160)
+  description     String?
+  kind            ExamKind
+  totalQuestions  Int      @map("total_questions")
+  durationMinutes Int      @map("duration_minutes")
+  passingScore    Float    @default(70) @map("passing_score") // percentage
+  randomizeQuestions Boolean @default(true) @map("randomize_questions")
+  randomizeChoices Boolean  @default(true) @map("randomize_choices")
+  // Composition: ordered [{ subjectId, count, difficultyLevelId? , weightPercent? }]
+  composition     Json
+  isActive        Boolean  @default(true) @map("is_active")
+  createdBy       String?  @db.Uuid @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  creator User?      @relation("ExamTemplateCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  exams   MockExam[]
+
+  @@index([kind, isActive])
+  @@map("exam_templates")
+}
+
+/// A single exam attempt by a student. The session of record.
+model MockExam {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String     @db.Uuid @map("user_id")
+  templateId      String?    @db.Uuid @map("template_id")
+  kind            ExamKind
+  title           String     @db.VarChar(160)
+  status          ExamStatus @default(created)
+  totalQuestions  Int        @map("total_questions")
+  durationMinutes Int        @map("duration_minutes")
+  passingScore    Float      @map("passing_score")
+  randomizeChoices Boolean   @default(true) @map("randomize_choices")
+  // Timing
+  startedAt       DateTime?  @map("started_at") @db.Timestamptz
+  expiresAt       DateTime?  @map("expires_at") @db.Timestamptz
+  submittedAt     DateTime?  @map("submitted_at") @db.Timestamptz
+  pausedAt        DateTime?  @map("paused_at") @db.Timestamptz
+  elapsedSeconds  Int        @default(0) @map("elapsed_seconds")
+  // Progress (denormalized for resume/autosave)
+  answeredCount   Int        @default(0) @map("answered_count")
+  lastActivityAt  DateTime?  @map("last_activity_at") @db.Timestamptz
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  user      User           @relation("UserMockExams", fields: [userId], references: [id], onDelete: Cascade)
+  template  ExamTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  questions ExamQuestion[]
+  result    ExamResult?
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+  @@map("mock_exams")
+}
+
+/// A question placed in an exam, with its randomized position and choice order.
+model ExamQuestion {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId        String            @db.Uuid @map("exam_id")
+  questionId    String            @db.Uuid @map("question_id")
+  userId        String            @db.Uuid @map("user_id")
+  position      Int               // randomized order within the exam
+  // Snapshot of taxonomy at exam-build time (decoupled from live edits).
+  subjectId     String            @db.Uuid @map("subject_id")
+  topicId       String?           @db.Uuid @map("topic_id")
+  difficultyLevelId String?       @db.Uuid @map("difficulty_level_id")
+  learningObjective String?       @db.VarChar(80) @map("learning_objective")
+  // Randomized choice order: ['C','A','D','B'] mapping presented→original letters.
+  choiceOrder   Json              @map("choice_order")
+  correctChoice String            @db.Char(1) @map("correct_choice")
+  state         ExamQuestionState @default(unanswered)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  exam     MockExam        @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question Question        @relation("QuestionExamQuestions", fields: [questionId], references: [id], onDelete: Cascade)
+  answer   ExamAnswer?
+
+  @@unique([examId, questionId])
+  @@unique([examId, position])
+  @@index([examId, position])
+  @@index([userId])
+  @@map("exam_questions")
+}
+
+/// A student's answer to an exam question (autosaved; gradeable on submit).
+model ExamAnswer {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examQuestionId String   @unique @db.Uuid @map("exam_question_id")
+  examId         String   @db.Uuid @map("exam_id")
+  userId         String   @db.Uuid @map("user_id")
+  selectedChoice String?  @db.Char(1) @map("selected_choice") // original letter
+  isCorrect      Boolean? @map("is_correct")                  // graded on submit
+  isBookmarked   Boolean  @default(false) @map("is_bookmarked")
+  timeSpentSec   Int      @default(0) @map("time_spent_sec")
+  answeredAt     DateTime @default(now()) @map("answered_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  examQuestion ExamQuestion @relation(fields: [examQuestionId], references: [id], onDelete: Cascade)
+
+  @@index([examId, userId])
+  @@index([examId, isBookmarked])
+  @@map("exam_answers")
+}
+
+/// The scored result of a submitted exam. Certificate-/leaderboard-ready.
+model ExamResult {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  examId         String           @unique @db.Uuid @map("exam_id")
+  userId         String           @db.Uuid @map("user_id")
+  totalQuestions Int              @map("total_questions")
+  answeredCount  Int              @map("answered_count")
+  correctCount   Int              @map("correct_count")
+  incorrectCount Int              @map("incorrect_count")
+  skippedCount   Int              @map("skipped_count")
+  scorePercent   Float            @map("score_percent")
+  passingScore   Float            @map("passing_score")
+  status         ExamResultStatus @default(pending)
+  timeSpentSec   Int              @default(0) @map("time_spent_sec")
+  // Certificate-ready: stable public id + verification hash (no PDF here).
+  resultCode     String           @unique @db.VarChar(40) @map("result_code")
+  // Leaderboard-ready: percentile filled by analytics.
+  percentile     Float?
+  computedAt     DateTime         @default(now()) @map("computed_at") @db.Timestamptz
+
+  user          User                @relation("UserExamResults", fields: [userId], references: [id], onDelete: Cascade)
+  exam          MockExam            @relation(fields: [examId], references: [id], onDelete: Cascade)
+  subjectScores ExamSubjectScore[]
+  topicScores   ExamTopicScore[]
+
+  @@index([userId, computedAt])
+  @@index([status, scorePercent])
+  @@map("exam_results")
+}
+
+/// Per-subject score breakdown for a result.
+model ExamSubjectScore {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  resultId      String @db.Uuid @map("result_id")
+  subjectId     String @db.Uuid @map("subject_id")
+  total         Int
+  correct       Int
+  scorePercent  Float  @map("score_percent")
+  weightPercent Float? @map("weight_percent")
+
+  result ExamResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+
+  @@unique([resultId, subjectId])
+  @@index([resultId])
+  @@map("exam_subject_scores")
+}
+
+/// Per-topic score breakdown for a result (feeds weakness/strength analysis).
+model ExamTopicScore {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  resultId     String @db.Uuid @map("result_id")
+  subjectId    String @db.Uuid @map("subject_id")
+  topicId      String @db.Uuid @map("topic_id")
+  total        Int
+  correct      Int
+  scorePercent Float  @map("score_percent")
+
+  result ExamResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+
+  @@unique([resultId, topicId])
+  @@index([resultId])
+  @@map("exam_topic_scores")
+}
+
+// ============================================================================
+// MODULE 14: AI TUTOR & INTELLIGENT LEARNING ASSISTANT (Sprint 3.3)
+// ============================================================================
+// Conversational AI tutor grounded in the Knowledge Base and powered by the
+// AI Generation Engine's provider seam. Additive and ownership-scoped. Covers
+// multi-turn conversations with session memory, per-message citations (LO /
+// formula / misconception / blueprint), and a coaching ledger that turns weak
+// topics and exam mistakes into guidance. No existing model is altered.
+
+enum TutorConversationStatus {
+  active
+  archived
+
+  @@map("tutor_conversation_status")
+}
+
+enum TutorMessageRole {
+  user
+  assistant
+  system
+
+  @@map("tutor_message_role")
+}
+
+enum TutorIntent {
+  ask_question        // free-form engineering question
+  explain_concept     // explain a concept / topic
+  explain_question    // explain a specific bank question
+  step_solution       // step-by-step worked solution
+  hint                // a graded hint (no full answer)
+  formula_help        // formula lookup / usage
+  coaching            // weak-topic / mistake coaching
+  followup            // follow-up within a thread
+
+  @@map("tutor_intent")
+}
+
+enum TutorCitationKind {
+  learning_objective
+  formula
+  misconception
+  blueprint
+  knowledge_document
+  question
+
+  @@map("tutor_citation_kind")
+}
+
+enum CoachingTrigger {
+  weak_topic
+  knowledge_gap
+  exam_mistake
+  misconception
+  streak_risk
+
+  @@map("coaching_trigger")
+}
+
+/// A tutoring conversation (a thread). Owns session memory + a rolling summary.
+model TutorConversation {
+  id           String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String                  @db.Uuid @map("user_id")
+  title        String                  @db.VarChar(200)
+  status       TutorConversationStatus @default(active)
+  // Lightweight subject/topic focus (for grounding & filtering).
+  subjectId    String?                 @db.Uuid @map("subject_id")
+  topicId      String?                 @db.Uuid @map("topic_id")
+  // Session memory: a rolling summary the tutor maintains across turns.
+  memorySummary String?                @map("memory_summary")
+  messageCount Int                     @default(0) @map("message_count")
+  lastMessageAt DateTime?              @map("last_message_at") @db.Timestamptz
+  createdAt    DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user     User            @relation("UserTutorConversations", fields: [userId], references: [id], onDelete: Cascade)
+  messages TutorMessage[]
+
+  @@index([userId, status])
+  @@index([userId, lastMessageAt])
+  @@map("tutor_conversations")
+}
+
+/// A single message in a conversation (user or assistant), with grounding meta.
+model TutorMessage {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String           @db.Uuid @map("conversation_id")
+  userId         String           @db.Uuid @map("user_id")
+  role           TutorMessageRole
+  intent         TutorIntent?
+  content        String
+  // Grounding metadata for assistant messages.
+  questionId     String?          @db.Uuid @map("question_id")
+  groundedInKb   Boolean          @default(false) @map("grounded_in_kb")
+  validatedOk    Boolean?         @map("validated_ok")
+  // Provider attribution (deterministic now, LLM-ready).
+  providerName   String?          @db.VarChar(60) @map("provider_name")
+  tokensIn       Int?             @map("tokens_in")
+  tokensOut      Int?             @map("tokens_out")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  conversation TutorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  citations    TutorCitation[]
+
+  @@index([conversationId, createdAt])
+  @@index([userId])
+  @@map("tutor_messages")
+}
+
+/// A citation attached to an assistant message (Knowledge Base provenance).
+model TutorCitation {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId   String            @db.Uuid @map("message_id")
+  kind        TutorCitationKind
+  refId       String            @map("ref_id")      // publicId or UUID of the cited entity
+  label       String            @db.VarChar(300)
+  snippet     String?
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  message TutorMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([kind, refId])
+  @@map("tutor_citations")
+}
+
+/// A coaching note generated for a student (weak topic, gap, or exam mistake).
+model TutorCoachingNote {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String          @db.Uuid @map("user_id")
+  trigger     CoachingTrigger
+  subjectId   String?         @db.Uuid @map("subject_id")
+  topicId     String?         @db.Uuid @map("topic_id")
+  title       String          @db.VarChar(200)
+  message     String
+  // Optional link to the source (an exam, a misconception, etc.).
+  sourceType  String?         @db.VarChar(40) @map("source_type")
+  sourceId    String?         @db.Uuid @map("source_id")
+  priority    Int             @default(0)
+  isRead      Boolean         @default(false) @map("is_read")
+  isDismissed Boolean         @default(false) @map("is_dismissed")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation("UserCoachingNotes", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, trigger])
+  @@map("tutor_coaching_notes")
+}

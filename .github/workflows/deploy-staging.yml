@@ -1,0 +1,101 @@
+# =============================================================================
+# CE Board Master — Staging Deployment
+# =============================================================================
+# Triggers on push to `develop`. Builds + pushes the API image, deploys the
+# frontend to a Vercel preview, runs migrations against staging, and smoke-tests.
+# A successful staging deploy is the gate for promoting to production.
+# =============================================================================
+name: Deploy · Staging
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '9'
+
+jobs:
+  build-api-image:
+    name: Build & push API image (staging)
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/api/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/api:staging-${{ github.sha }},ghcr.io/${{ github.repository }}/api:staging
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  migrate-staging:
+    name: Run DB migrations (staging)
+    runs-on: ubuntu-latest
+    needs: build-api-image
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile --filter @ce-board-master/api...
+      - name: prisma migrate deploy
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: pnpm db:generate && npx prisma migrate deploy
+
+  deploy-web-staging:
+    name: Deploy web (Vercel preview)
+    runs-on: ubuntu-latest
+    needs: migrate-staging
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Vercel (preview)
+        run: |
+          npm i -g vercel@latest
+          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+          vercel build --token=${{ secrets.VERCEL_TOKEN }}
+          vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > deployment-url.txt
+          echo "STAGING_URL=$(cat deployment-url.txt)" >> "$GITHUB_ENV"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  smoke-test:
+    name: Smoke test (staging)
+    runs-on: ubuntu-latest
+    needs: [deploy-web-staging]
+    environment: staging
+    steps:
+      - name: API health
+        run: |
+          set -e
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.STAGING_API_URL }}/api/v1/health" || true)
+            echo "Attempt $i → $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "API health check failed" && exit 1

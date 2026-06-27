@@ -1,0 +1,12 @@
+export { StudentModule } from './student.module';
+export { StudentDashboardService } from './services/student-dashboard.service';
+export { PracticeSessionService } from './services/practice-session.service';
+export { ProgressTrackingService } from './services/progress-tracking.service';
+export { AchievementService } from './services/achievement.service';
+export { LearningPathService } from './services/learning-path.service';
+export { QuestionRecommendationService } from './services/question-recommendation.service';
+export { StudentStatisticsService } from './services/student-statistics.service';
+export { StudyPlannerService } from './services/study-planner.service';
+export { EngagementService } from './services/engagement.service';
+export * from './constants/student.constants';
+export type * from './types/student.types';

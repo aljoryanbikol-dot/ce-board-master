@@ -1,0 +1,37 @@
+# =============================================================================
+# CE Board Master — Synthetic / Uptime Checks
+# =============================================================================
+# Provider-agnostic definition (maps to Pingdom / Better Uptime / Datadog
+# Synthetics / Checkly). External checks catch what internal metrics can't.
+# =============================================================================
+checks:
+  - name: api-health
+    url: https://api.ceboardmaster.ph/api/v1/health
+    method: GET
+    interval: 60s
+    expect_status: 200
+    expect_body_contains: '"status":"ok"'
+    locations: [singapore, tokyo, sydney]
+    alert_after_failures: 2
+
+  - name: web-login
+    url: https://ceboardmaster.ph/login
+    method: GET
+    interval: 60s
+    expect_status: 200
+    locations: [singapore, tokyo]
+    alert_after_failures: 2
+
+  - name: web-home-redirect
+    url: https://ceboardmaster.ph/
+    method: GET
+    interval: 300s
+    expect_status: [200, 307, 308]
+    locations: [singapore]
+    alert_after_failures: 3
+
+  - name: ssl-expiry
+    url: https://ceboardmaster.ph
+    type: ssl_certificate
+    interval: 86400s
+    alert_days_before_expiry: 21

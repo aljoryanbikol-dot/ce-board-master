@@ -1,0 +1,161 @@
+# =============================================================================
+# CE Board Master — Production Deployment
+# =============================================================================
+# Triggers on push to `main` (after CI passes) or manual dispatch. Builds and
+# pushes the production API image, runs migrations against production behind a
+# protected environment (manual approval), deploys the frontend to Vercel
+# production, smoke-tests, and can auto-rollback the web deploy on failure.
+#
+# Required GitHub Environments: `production` (with required reviewers).
+# Required secrets: PROD_DATABASE_URL, PROD_API_URL, VERCEL_*, GHCR via GITHUB_TOKEN.
+# =============================================================================
+name: Deploy · Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_migrations:
+        description: 'Skip prisma migrate deploy (use a dedicated migration job)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '9'
+
+jobs:
+  guard:
+    name: Pre-deploy guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm CI is green on this SHA
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.checks.listForRef({
+              owner: context.repo.owner, repo: context.repo.repo, ref: context.sha,
+            });
+            const ci = data.check_runs.filter(c => c.name && c.conclusion);
+            const failed = ci.filter(c => !['success','neutral','skipped'].includes(c.conclusion));
+            if (failed.length) core.setFailed(`Blocking deploy: ${failed.map(f=>f.name).join(', ')} not passing`);
+            else core.info('CI checks passing.');
+
+  build-api-image:
+    name: Build & push API image (prod)
+    runs-on: ubuntu-latest
+    needs: guard
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & push (tag with SHA + latest)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/api:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+  migrate-production:
+    name: Run DB migrations (production)
+    runs-on: ubuntu-latest
+    needs: build-api-image
+    environment: production   # requires manual approval
+    if: ${{ !inputs.skip_migrations }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile --filter @ce-board-master/api...
+      - name: Backup before migrate (safety)
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: ./infrastructure/scripts/backup/db-backup.sh || echo "::warning::pre-migrate backup skipped/failed"
+      - name: prisma migrate deploy
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: pnpm db:generate && npx prisma migrate deploy
+
+  deploy-web-production:
+    name: Deploy web (Vercel production)
+    runs-on: ubuntu-latest
+    needs: [build-api-image, migrate-production]
+    if: ${{ always() && needs.build-api-image.result == 'success' && (needs.migrate-production.result == 'success' || needs.migrate-production.result == 'skipped') }}
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Vercel (prod)
+        run: |
+          npm i -g vercel@latest
+          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  smoke-test:
+    name: Post-deploy smoke test
+    runs-on: ubuntu-latest
+    needs: [deploy-web-production]
+    environment: production
+    steps:
+      - name: API health
+        run: |
+          set -e
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.PROD_API_URL }}/api/v1/health" || true)
+            echo "Attempt $i → $code"
+            [ "$code" = "200" ] && break
+            [ "$i" = "12" ] && { echo "API health failed"; exit 1; }
+            sleep 10
+          done
+      - name: Web reachability
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.PROD_WEB_URL }}/login" || true)
+          echo "web /login → $code"
+          [ "$code" = "200" ] || { echo "web check failed"; exit 1; }
+
+  rollback:
+    name: Rollback web on smoke failure
+    runs-on: ubuntu-latest
+    needs: [smoke-test]
+    if: failure()
+    environment: production
+    steps:
+      - name: Promote previous Vercel deployment
+        run: |
+          npm i -g vercel@latest
+          echo "::warning::Smoke test failed — rolling back to the previous production deployment."
+          vercel rollback --yes --token=${{ secrets.VERCEL_TOKEN }} || echo "::error::Automatic rollback failed — intervene manually."
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

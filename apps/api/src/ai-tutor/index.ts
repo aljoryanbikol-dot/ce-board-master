@@ -1,0 +1,15 @@
+export { AITutorModule } from './ai-tutor.module';
+export { AITutorService } from './services/ai-tutor.service';
+export { ConversationService } from './services/conversation.service';
+export { ExplanationService } from './services/explanation.service';
+export { HintService } from './services/hint.service';
+export { SolutionService } from './services/solution.service';
+export { FormulaAssistantService } from './services/formula-assistant.service';
+export { RecommendationService } from './services/recommendation.service';
+export { LearningCoachService } from './services/learning-coach.service';
+export { TutorContextService } from './services/tutor-context.service';
+export { GroundingValidationService } from './services/grounding-validation.service';
+export { TUTOR_PROVIDER } from './providers/tutor-provider.interface';
+export type { TutorProvider } from './providers/tutor-provider.interface';
+export * from './constants/tutor.constants';
+export type * from './types/tutor.types';

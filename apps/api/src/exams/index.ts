@@ -1,0 +1,11 @@
+export { ExamsModule } from './exams.module';
+export { MockExamService } from './services/mock-exam.service';
+export { ExamSessionService } from './services/exam-session.service';
+export { ExamTimerService } from './services/exam-timer.service';
+export { ExamScoringService } from './services/exam-scoring.service';
+export { ExamResultService } from './services/exam-result.service';
+export { ExamReviewService } from './services/exam-review.service';
+export { ExamAnalyticsService } from './services/exam-analytics.service';
+export { ExamRecommendationService } from './services/exam-recommendation.service';
+export * from './constants/exam.constants';
+export type * from './types/exam.types';
