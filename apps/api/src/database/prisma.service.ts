@@ -24,16 +24,16 @@ import type { AppEnvironment } from '@/config/configuration';
  * Models that implement the soft-delete pattern (a nullable `deletedAt`
  * timestamp). Reads on these models exclude rows where `deletedAt IS NOT NULL`.
  */
+// Only models that actually have a nullable `deletedAt` column in schema.prisma.
+// Reference entities (Tag, ReferenceBook, DifficultyLevel, FormulaLibrary,
+// EngineeringCode) use `isActive` + hard-delete-with-FK-guard instead; including
+// them here would inject a `deletedAt: null` filter and raise a Prisma error.
 const SOFT_DELETE_MODELS: ReadonlySet<string> = new Set([
   'User',
   'Question',
   'Subject',
   'Topic',
   'Subtopic',
-  'Tag',
-  'ReferenceBook',
-  'EngineeringCode',
-  'FormulaLibrary',
 ]);
 
 /** Minimal structural view of a `where` clause we can augment. */
