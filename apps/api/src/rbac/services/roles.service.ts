@@ -282,7 +282,7 @@ export class RolesService {
 
     if (!role) throw RbacErrors.roleNotFound(roleId);
 
-    return role.rolePermissions.map((rp: { permission: unknown }) => rp.permission);
+    return role.rolePermissions.map((rp) => rp.permission);
   }
 
   // ── Private cache helpers ──────────────────────────────────────────────────
