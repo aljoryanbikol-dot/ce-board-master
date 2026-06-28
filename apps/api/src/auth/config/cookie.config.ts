@@ -8,11 +8,14 @@
  * - httpOnly: JavaScript cannot read the cookie (XSS protection)
  * - Secure: Transmitted only over HTTPS
  * - SameSite=Strict: No cross-origin request sends the cookie (CSRF protection)
- * - Path restricted to the refresh endpoint only
+ * - Path=/ so the cookie is sent on the same-origin requests the web app makes
  *
- * Path restriction: Setting Path=/api/v1/auth/refresh ensures the browser
- * only sends the refresh token cookie to that specific path. All other API
- * calls never include the refresh token, reducing its exposure surface.
+ * Path note: the web app reaches the API through a same-origin Next.js rewrite
+ * (/api/backend/* → <api>/api/v1/*), so the browser calls the refresh endpoint
+ * at /api/backend/auth/refresh — NOT /api/v1/auth/refresh. A cookie scoped to
+ * the backend's own path would therefore never be sent on refresh (the browser
+ * would log the user out on every reload). Path=/ ensures it is sent; HttpOnly +
+ * Secure + SameSite=Strict still protect it.
  */
 
 /** Cookie serialize options type (Fastify-compatible) */
@@ -34,7 +37,7 @@ export function getRefreshTokenCookieOptions(isProduction: boolean): CookieOptio
     httpOnly: true,
     secure: isProduction,
     sameSite: 'strict',
-    path: '/api/v1/auth/refresh',
+    path: '/',
     // 30 days in seconds — matches JWT_REFRESH_TOKEN_EXPIRES_IN default
     maxAge: 30 * 24 * 60 * 60,
   };
@@ -49,7 +52,7 @@ export function getClearRefreshTokenCookieOptions(isProduction: boolean): Cookie
     httpOnly: true,
     secure: isProduction,
     sameSite: 'strict',
-    path: '/api/v1/auth/refresh',
+    path: '/',
     maxAge: 0,
     expires: new Date(0),
   };
