@@ -44,7 +44,11 @@ export interface XpAward {
 export interface AnswerResult {
   attemptId: string;
   isCorrect: boolean;
+  /** Alias of isCorrect for client convenience. */
+  correct: boolean;
   correctChoice: string;
+  /** Revealed only in the answer response, after the student submits. */
+  explanationText: string;
   outcome: string;
   xp: XpAward;
   mastery: MasteryUpdate | null;

@@ -55,7 +55,34 @@ export class PracticeSessionService {
     });
     this.eventEmitter.emit(EVENTS.STUDENT_SESSION_STARTED, { userId, sessionId: session.id, mode: dto.mode });
     await this.cache.del(CACHE_KEYS.student.dashboard(userId));
-    return { sessionId: session.id, mode: session.mode, targetCount: session.targetCount, questionIds: questionIds.slice(0, session.targetCount) };
+
+    // Return the question content the client renders (stem + choices ONLY —
+    // never the correct answer or explanation, which are revealed per-question
+    // after the student submits via /answers).
+    const selectedIds = questionIds.slice(0, session.targetCount);
+    const rows = await this.prisma.question.findMany({
+      where: { id: { in: selectedIds } },
+      select: {
+        id: true,
+        stemText: true,
+        choices: {
+          select: { choiceLetter: true, choiceText: true },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const questions = selectedIds
+      .map((id) => byId.get(id))
+      .filter((r): r is NonNullable<typeof r> => Boolean(r))
+      .map((r) => ({
+        id: r.id,
+        questionId: r.id,
+        stemText: r.stemText,
+        choices: r.choices.map((c) => ({ key: c.choiceLetter, text: c.choiceText })),
+      }));
+
+    return { sessionId: session.id, mode: session.mode, targetCount: session.targetCount, questionIds: selectedIds, questions };
   }
 
   async getSession(userId: string, sessionId: string) {
@@ -81,7 +108,7 @@ export class PracticeSessionService {
     // Load the question (must be published).
     const question = await this.prisma.question.findFirst({
       where: { id: dto.questionId, deletedAt: null },
-      select: { id: true, correctChoice: true, questionStatus: true, subjectId: true, topicId: true, subtopicId: true, difficultyLevelId: true, bloomLevel: true },
+      select: { id: true, correctChoice: true, explanationText: true, questionStatus: true, subjectId: true, topicId: true, subtopicId: true, difficultyLevelId: true, bloomLevel: true },
     });
     if (!question) throw StudentErrors.questionNotFound(dto.questionId);
     if (question.questionStatus !== 'published') throw StudentErrors.questionNotAvailable(dto.questionId);
@@ -154,7 +181,8 @@ export class PracticeSessionService {
     await this.cache.del(CACHE_KEYS.student.progress(userId));
 
     return {
-      attemptId: result.attempt.id, isCorrect, correctChoice: question.correctChoice, outcome,
+      attemptId: result.attempt.id, isCorrect, correct: isCorrect,
+      correctChoice: question.correctChoice, explanationText: question.explanationText, outcome,
       xp: result.xp, mastery: result.mastery, newAchievements, sessionProgress: result.sessionProgress,
     };
   }
