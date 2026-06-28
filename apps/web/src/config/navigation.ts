@@ -7,7 +7,7 @@ import {
   LayoutDashboard, BookOpen, Dumbbell, FileText, Bot, CalendarRange, TrendingUp,
   BarChart3, Bookmark, History, User, CreditCard, Receipt, Settings,
   Database, Library, Sigma, Target, Layers, ClipboardCheck, Sparkles,
-  Users, Shield, KeyRound, ScrollText, SlidersHorizontal,
+  Users, Shield, KeyRound, ScrollText, SlidersHorizontal, Gauge, Tag,
 } from 'lucide-react';
 
 export interface NavItem { label: string; href: string; icon: LucideIcon; }
@@ -53,9 +53,13 @@ export const adminNav: NavSection[] = [
   {
     label: 'Question Bank',
     items: [
+      { label: 'Questions', href: '/admin/questions', icon: FileText },
       { label: 'Subjects', href: '/admin/subjects', icon: BookOpen },
       { label: 'Categories', href: '/admin/topics', icon: Layers },
       { label: 'Subcategories', href: '/admin/subtopics', icon: Target },
+      { label: 'Difficulty Levels', href: '/admin/difficulty-levels', icon: Gauge },
+      { label: 'Tags', href: '/admin/tags', icon: Tag },
+      { label: 'References', href: '/admin/references', icon: Library },
     ],
   },
   {

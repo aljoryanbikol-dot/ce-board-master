@@ -74,3 +74,48 @@ export const CreateSubtopicSchema = z.object({
 export const UpdateSubtopicSchema = CreateSubtopicSchema.partial();
 export type CreateSubtopicDto = z.infer<typeof CreateSubtopicSchema>;
 export type UpdateSubtopicDto = z.infer<typeof UpdateSubtopicSchema>;
+
+// ── Difficulty Levels ───────────────────────────────────────────────────────
+export const CreateDifficultyLevelSchema = z.object({
+  name: z.string().trim().min(1).max(50),
+  code: z.coerce.number().int().min(1).max(32767),
+  description: z.string().trim().max(2000).optional().nullable(),
+  passingThreshold: z.coerce.number().min(0).max(100).default(70),
+  colorHex: hexColor,
+  sortOrder: z.coerce.number().int().min(0).default(0),
+  isActive: z.boolean().default(true),
+});
+export const UpdateDifficultyLevelSchema = CreateDifficultyLevelSchema.partial();
+export type CreateDifficultyLevelDto = z.infer<typeof CreateDifficultyLevelSchema>;
+export type UpdateDifficultyLevelDto = z.infer<typeof UpdateDifficultyLevelSchema>;
+
+// ── Tags ────────────────────────────────────────────────────────────────────
+export const TAG_CATEGORIES = ['general', 'prc_exam', 'difficulty', 'topic_theme', 'skill_type', 'exam_year'] as const;
+export const CreateTagSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  slug: z.string().trim().toLowerCase().min(1).max(80).regex(/^[a-z0-9-]+$/, 'Slug may contain a–z, 0–9, hyphen.').optional(),
+  category: z.enum(TAG_CATEGORIES).default('general'),
+  description: z.string().trim().max(2000).optional().nullable(),
+  colorHex: hexColor,
+  isActive: z.boolean().default(true),
+});
+export const UpdateTagSchema = CreateTagSchema.partial();
+export type CreateTagDto = z.infer<typeof CreateTagSchema>;
+export type UpdateTagDto = z.infer<typeof UpdateTagSchema>;
+
+// ── Reference Books ─────────────────────────────────────────────────────────
+export const CreateReferenceBookSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  edition: z.string().trim().max(50).optional().nullable(),
+  publisher: z.string().trim().max(255).optional().nullable(),
+  publicationYear: z.coerce.number().int().min(1800).max(2100).optional().nullable(),
+  isbn13: z.string().trim().length(13).optional().nullable(),
+  isbn10: z.string().trim().length(10).optional().nullable(),
+  subjectArea: z.string().trim().max(100).optional().nullable(),
+  coverImageUrl: z.string().trim().url().max(1000).optional().nullable(),
+  description: z.string().trim().max(2000).optional().nullable(),
+  isActive: z.boolean().default(true),
+});
+export const UpdateReferenceBookSchema = CreateReferenceBookSchema.partial();
+export type CreateReferenceBookDto = z.infer<typeof CreateReferenceBookSchema>;
+export type UpdateReferenceBookDto = z.infer<typeof UpdateReferenceBookSchema>;

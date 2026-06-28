@@ -39,6 +39,26 @@ export interface Subtopic {
   _count?: { questions: number };
 }
 
+export interface DifficultyLevel {
+  id: string; name: string; code: number; description?: string | null;
+  passingThreshold?: number | string | null; colorHex?: string | null;
+  sortOrder: number; isActive: boolean; _count?: { questions: number };
+}
+export interface Tag {
+  id: string; name: string; slug: string; category: string;
+  description?: string | null; colorHex?: string | null; usageCount?: number;
+  isActive: boolean; _count?: { questionTags: number };
+}
+export interface ReferenceBook {
+  id: string; title: string; edition?: string | null; publisher?: string | null;
+  publicationYear?: number | null; isbn13?: string | null; isbn10?: string | null;
+  subjectArea?: string | null; coverImageUrl?: string | null; description?: string | null;
+  isActive: boolean; _count?: { questionReferences: number };
+}
+
 export const subjectsApi = crudClient<Subject>('/admin/subjects');
 export const topicsApi = crudClient<Topic>('/admin/topics');
 export const subtopicsApi = crudClient<Subtopic>('/admin/subtopics');
+export const difficultyLevelsApi = crudClient<DifficultyLevel>('/admin/difficulty-levels');
+export const tagsApi = crudClient<Tag>('/admin/tags');
+export const referenceBooksApi = crudClient<ReferenceBook>('/admin/reference-books');
