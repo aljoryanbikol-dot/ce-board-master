@@ -29,7 +29,15 @@ import {
   WorkflowEntryDto,
 } from '../dto/review.dto';
 import { PERM, ROLE_SLUGS } from '../../rbac/rbac.constants';
+import { QuestionStatus } from '@prisma/client';
+import { z } from 'zod';
 import type { AuthenticatedUser } from '../../auth/auth.types';
+
+/** Admin direct status set (CMS one-click publish/unpublish/archive). */
+const SetStatusSchema = z.object({
+  status: z.enum(['published', 'archived', 'draft']),
+  notes: z.string().trim().max(500).optional(),
+});
 
 const AUTHORS = [
   ROLE_SLUGS.SUPER_ADMIN, ROLE_SLUGS.ADMIN, ROLE_SLUGS.CONTENT_ADMIN, ROLE_SLUGS.CONTENT_AUTHOR,
@@ -121,6 +129,20 @@ export class QuestionWorkflowController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.workflow.archive(id, user, body.notes);
+  }
+
+  @Post(':id/set-status')
+  @HttpCode(HttpStatus.OK)
+  @Roles(ROLE_SLUGS.SUPER_ADMIN, ROLE_SLUGS.ADMIN, ROLE_SLUGS.CONTENT_ADMIN)
+  @Permissions(PERM.QUESTIONS_PUBLISH)
+  @ApiOperation({ summary: 'Admin: set status directly', description: 'One-click publish/unpublish/archive (bypasses the review stages).' })
+  @ApiParam({ name: 'id' })
+  async setStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(SetStatusSchema)) body: typeof SetStatusSchema._type,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.workflow.adminSetStatus(id, user, body.status as QuestionStatus, body.notes);
   }
 
   @Post(':id/flag')

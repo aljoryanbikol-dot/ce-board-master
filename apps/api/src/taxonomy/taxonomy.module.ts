@@ -12,13 +12,15 @@ import { RbacModule } from '../rbac/rbac.module';
 import { SubjectsController } from './controllers/subjects.controller';
 import { TopicsController } from './controllers/topics.controller';
 import { SubtopicsController } from './controllers/subtopics.controller';
+import { DifficultyLevelsController } from './controllers/difficulty-levels.controller';
 import { SubjectsService } from './services/subjects.service';
 import { TopicsService } from './services/topics.service';
 import { SubtopicsService } from './services/subtopics.service';
+import { DifficultyLevelsService } from './services/difficulty-levels.service';
 
 @Module({
   imports: [AuthModule, RbacModule],
-  controllers: [SubjectsController, TopicsController, SubtopicsController],
-  providers: [SubjectsService, TopicsService, SubtopicsService],
+  controllers: [SubjectsController, TopicsController, SubtopicsController, DifficultyLevelsController],
+  providers: [SubjectsService, TopicsService, SubtopicsService, DifficultyLevelsService],
 })
 export class TaxonomyModule {}

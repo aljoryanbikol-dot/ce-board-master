@@ -149,6 +149,34 @@ export class QuestionWorkflowService {
     return this.statusResult(id, QuestionStatus.archived, null);
   }
 
+  // ── Admin direct status set (CMS shortcut) ──────────────────────────────────
+  // The formal pipeline is draft→in_review→approved→published. Admins managing
+  // the question bank need a one-click Publish/Unpublish/Archive that bypasses
+  // the review stages. Requires questions.publish; reuses the transition + audit
+  // primitive so history and cache invalidation are consistent.
+
+  async adminSetStatus(id: string, requester: AuthenticatedUser, to: QuestionStatus, notes?: string) {
+    const q = await this.load(id);
+    await this.assertPermission(requester, PERM.QUESTIONS_PUBLISH);
+    if (q.questionStatus === to) return this.statusResult(id, to, null);
+
+    const action =
+      to === QuestionStatus.published ? ReviewAction.publish
+      : to === QuestionStatus.archived ? ReviewAction.archive
+      : ReviewAction.reject;
+
+    await this.transition({
+      id, from: q.questionStatus, to, action,
+      actorId: requester.id, version: q.currentVersion,
+      note: notes ?? `Status set to ${to} (admin)`,
+      ...(to === QuestionStatus.published ? { setPublished: requester.id } : {}),
+    });
+    if (to === QuestionStatus.published) {
+      await this.prisma.questionVersion.updateMany({ where: { questionId: id, isCurrent: true }, data: { publishedAt: new Date() } });
+    }
+    return this.statusResult(id, to, null);
+  }
+
   // ── Flag / unflag ────────────────────────────────────────────────────────────
 
   async flag(id: string, requester: AuthenticatedUser, reason: string) {
