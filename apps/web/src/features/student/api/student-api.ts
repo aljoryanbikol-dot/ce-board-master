@@ -5,12 +5,14 @@
 import { api } from '@/lib/api/client';
 
 export interface DashboardSummary {
-  streak?: number;
-  masteryAverage?: number;
-  questionsAnswered?: number;
-  weakTopicsCount?: number;
-  recentActivity?: Array<{ id: string; type: string; label: string; at: string }>;
-  continueLearning?: { sessionId?: string; label?: string } | null;
+  streak?: { current: number; longest: number; activeToday: boolean };
+  xp?: { totalXp: number; level: number; xpIntoLevel: number; xpForNextLevel: number };
+  progress?: { totalAnswered: number; overallAccuracy: number; topicsMastered: number };
+  weakTopics?: Array<{ topicId: string; accuracy?: number }>;
+  strongTopics?: Array<{ topicId: string; accuracy?: number }>;
+  recentAchievements?: Array<{ code: string; name: string; earnedAt: string }>;
+  continueLearning?: { sessionId?: string; mode?: string; answeredCount?: number; targetCount?: number } | null;
+  dailyGoal?: unknown;
   [k: string]: unknown;
 }
 

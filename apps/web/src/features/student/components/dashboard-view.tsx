@@ -15,7 +15,8 @@ export function DashboardView() {
   const dash = useDashboard();
   const weak = useWeakTopics();
   const d = dash.data ?? {};
-  const mastery = typeof d.masteryAverage === 'number' ? d.masteryAverage : 0;
+  // overallAccuracy is a 0..1 ratio; the UI works in 0..100 percentages.
+  const mastery = (d.progress?.overallAccuracy ?? 0) * 100;
 
   return (
     <div>
@@ -27,10 +28,10 @@ export function DashboardView() {
 
       <QueryBoundary isLoading={dash.isLoading} isError={dash.isError}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Day streak" value={d.streak ?? 0} icon={Flame} accent="accent" hint="Keep it going" />
+          <StatCard label="Day streak" value={d.streak?.current ?? 0} icon={Flame} accent="accent" hint="Keep it going" />
           <StatCard label="Avg mastery" value={formatPercent(mastery)} icon={Target} accent="primary" />
-          <StatCard label="Questions answered" value={d.questionsAnswered ?? 0} icon={CheckCircle2} accent="success" />
-          <StatCard label="Weak topics" value={d.weakTopicsCount ?? weak.data?.length ?? 0} icon={AlertTriangle} accent="warning" hint="Focus here next" />
+          <StatCard label="Questions answered" value={d.progress?.totalAnswered ?? 0} icon={CheckCircle2} accent="success" />
+          <StatCard label="Weak topics" value={d.weakTopics?.length ?? weak.data?.length ?? 0} icon={AlertTriangle} accent="warning" hint="Focus here next" />
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
