@@ -93,7 +93,12 @@ export class RolesService {
           orderBy: { sortOrder: 'desc' },
           include: { _count: { select: { rolePermissions: true } } },
         });
-        return roles.map((r) => ({
+        return roles.map(
+          (r: {
+            id: string; name: string; slug: string; isSystem: boolean;
+            isActive: boolean; sortOrder: number;
+            _count: { rolePermissions: number };
+          }) => ({
           id:              r.id,
           name:            r.name,
           slug:            r.slug,
@@ -277,7 +282,7 @@ export class RolesService {
 
     if (!role) throw RbacErrors.roleNotFound(roleId);
 
-    return role.rolePermissions.map((rp) => rp.permission);
+    return role.rolePermissions.map((rp: { permission: unknown }) => rp.permission);
   }
 
   // ── Private cache helpers ──────────────────────────────────────────────────

@@ -52,6 +52,7 @@ export interface IPasswordService {
 export interface PasswordStrengthResult {
   isValid: boolean;
   errors: string[];
+  score: number; // 0–4 (0=terrible, 4=strong) — matches validatePasswordStrength()
 }
 
 // ── ITokenService ─────────────────────────────────────────────────────────────

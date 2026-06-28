@@ -27,8 +27,15 @@ export const useAuthStore = create<AuthState>((set) => ({
   setUser: (user) => set({ user, status: user ? 'authenticated' : 'unauthenticated' }),
   bootstrap: async () => {
     set({ status: 'loading' });
-    const user = await authApi.bootstrap();
-    set({ user, status: user ? 'authenticated' : 'unauthenticated' });
+    try {
+      const user = await authApi.bootstrap();
+      set({ user, status: user ? 'authenticated' : 'unauthenticated' });
+    } catch {
+      // Backend unreachable / timeout / unexpected error: fail open to the
+      // logged-out state so the app shell renders (login page) instead of
+      // hanging on the loading screen indefinitely.
+      set({ user: null, status: 'unauthenticated' });
+    }
   },
   logout: async () => {
     await authApi.logout();

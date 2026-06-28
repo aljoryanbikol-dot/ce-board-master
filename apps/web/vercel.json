@@ -4,21 +4,39 @@
   "buildCommand": "cd ../.. && pnpm --filter @ce-board/web build",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile --filter @ce-board/web...",
   "outputDirectory": ".next",
-  "regions": ["sin1"],
-  "git": { "deploymentEnabled": { "main": true } },
+  "regions": [
+    "sin1"
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        }
       ]
     }
-  ],
-  "rewrites": [
-    { "source": "/api/backend/:path*", "destination": "https://api.ceboardmaster.ph/api/v1/:path*" }
   ]
 }

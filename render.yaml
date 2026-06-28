@@ -1,0 +1,76 @@
+# =============================================================================
+# CE Board Master — Render Blueprint (FREE-TIER soft launch)
+# =============================================================================
+# Backend only. Database = Neon (external), Redis = Upstash (external).
+# Render hosts just the API as a free web service; it reads DATABASE_URL and the
+# REDIS_* values you paste in the dashboard. No paid Render DB/Redis is created.
+#
+# Upgrade path (no code change): flip `plan: free` → `starter` to remove sleep,
+# or repoint DATABASE_URL / REDIS_* at a larger provider. Application code is
+# unchanged because everything is env-driven.
+# =============================================================================
+services:
+  - type: web
+    name: ceboard-api
+    runtime: docker
+    plan: free                       # free tier: 512 MB, sleeps after ~15 min idle
+    region: singapore                # match Neon + Upstash (ap-southeast-1)
+    dockerfilePath: ./infrastructure/docker/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: API_PREFIX
+        value: api/v1
+
+      # ── External datastores (paste real values in the dashboard) ────────────
+      - key: DATABASE_URL          # Neon pooled connection string
+        sync: false
+      - key: REDIS_HOST            # Upstash endpoint
+        sync: false
+      - key: REDIS_PORT
+        value: "6379"
+      - key: REDIS_PASSWORD        # Upstash TCP password
+        sync: false
+      - key: REDIS_TLS
+        value: "true"
+
+      # ── Secrets Render generates for you ────────────────────────────────────
+      - key: COOKIE_SECRET
+        generateValue: true
+      - key: ARGON2_PEPPER
+        generateValue: true
+
+      # ── RS256 JWT key pair (PEM, with literal \n) — paste in dashboard ───────
+      - key: JWT_PRIVATE_KEY
+        sync: false
+      - key: JWT_PUBLIC_KEY
+        sync: false
+      - key: JWT_ACCESS_TOKEN_EXPIRES_IN
+        value: "900"
+      - key: JWT_REFRESH_TOKEN_EXPIRES_IN
+        value: "2592000"
+
+      # ── Frontend wiring (Vercel) ────────────────────────────────────────────
+      - key: CORS_ORIGINS          # e.g. https://ceboardmaster.com,https://<app>.vercel.app
+        sync: false
+      - key: FRONTEND_URL          # e.g. https://ceboardmaster.com
+        sync: false
+
+      # ── Email sender identity (used once Resend is configured) ──────────────
+      - key: EMAIL_FROM
+        value: no-reply@ceboardmaster.com
+      - key: EMAIL_FROM_NAME
+        value: CE Board Master
+
+      # ── Operational ─────────────────────────────────────────────────────────
+      - key: RATE_LIMIT_GLOBAL
+        value: "100"
+      - key: REDIS_DEFAULT_TTL
+        value: "300"
+      - key: SWAGGER_PATH
+        value: docs

@@ -40,8 +40,8 @@ export class LocalAuthGuard extends AuthGuard(LOCAL_STRATEGY) {
   handleRequest<TUser extends AuthenticatedUser>(
     err: Error | null,
     user: TUser | false,
-    info: { message?: string } | undefined,
-    context: ExecutionContext,
+    _info: { message?: string } | undefined,
+    _context: ExecutionContext,
   ): TUser {
     if (err) throw err;
 

@@ -8,7 +8,11 @@ const nextConfig = {
   outputFileTracingRoot: new URL('../../', import.meta.url).pathname,
   transpilePackages: ['@ce-board-master/types', '@ce-board-master/utils'],
   async rewrites() {
-    // Proxy API calls to the backend in dev; in prod set NEXT_PUBLIC_API_URL.
+    // Single source of truth for the backend origin. Set API_PROXY_TARGET in the
+    // Vercel project env to the deployed backend (e.g. https://ceboard-api.onrender.com).
+    // Falls back to the local backend in dev. The browser always calls the
+    // same-origin path /api/backend/* and Next proxies it server-side, so the
+    // httpOnly refresh cookie stays first-party.
     const apiBase = process.env.API_PROXY_TARGET || 'http://localhost:3001';
     return [{ source: '/api/backend/:path*', destination: `${apiBase}/api/v1/:path*` }];
   },

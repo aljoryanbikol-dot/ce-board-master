@@ -167,7 +167,7 @@ export class MfaService {
     }
 
     // Remove consumed code (single-use guarantee)
-    const remaining = mfaConfig.backupCodes.filter((c) => c !== codeHash);
+    const remaining = mfaConfig.backupCodes.filter((c: string) => c !== codeHash);
     await this.prisma.mfaConfig.update({
       where: { userId },
       data:  { backupCodes: remaining },
