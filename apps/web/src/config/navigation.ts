@@ -51,6 +51,14 @@ export const adminNav: NavSection[] = [
     items: [{ label: 'Dashboard', href: '/admin', icon: LayoutDashboard }],
   },
   {
+    label: 'Question Bank',
+    items: [
+      { label: 'Subjects', href: '/admin/subjects', icon: BookOpen },
+      { label: 'Categories', href: '/admin/topics', icon: Layers },
+      { label: 'Subcategories', href: '/admin/subtopics', icon: Target },
+    ],
+  },
+  {
     label: 'Content',
     items: [
       { label: 'CMS', href: '/admin/cms', icon: Database },
