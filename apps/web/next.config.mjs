@@ -18,31 +18,14 @@ const nextConfig = {
   },
   experimental: { optimizePackageImports: ['lucide-react', 'recharts'] },
   poweredByHeader: false,
-  // Production security headers. The CSP is intentionally strict; connect-src
-  // allows the API origin (same-origin proxy by default). Tighten/loosen per env
-  // via NEXT_PUBLIC_API_URL. 'unsafe-inline' on style-src is required by many
-  // CSS-in-JS/Tailwind runtime patterns; scripts stay locked down.
+  // Production security headers. The Content-Security-Policy is set per-request
+  // in middleware.ts (it needs a fresh nonce each request so Next.js can nonce
+  // its inline hydration scripts); the static headers below are request-agnostic.
   async headers() {
-    const isDev = process.env.NODE_ENV !== 'production';
-    const csp = [
-      "default-src 'self'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'none'",
-      "object-src 'none'",
-      `script-src 'self'${isDev ? " 'unsafe-eval'" : ''}`,
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https:",
-      "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://fonts.googleapis.com",
-      "manifest-src 'self'",
-      'upgrade-insecure-requests',
-    ].join('; ');
     return [
       {
         source: '/:path*',
         headers: [
-          { key: 'Content-Security-Policy', value: csp },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
