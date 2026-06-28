@@ -75,6 +75,12 @@ async function bootstrap(): Promise<void> {
     {
       // Suppress NestJS's default logger — Pino via Fastify handles all logging
       bufferLogs: true,
+      // We register our own application/json content-type parser below
+      // (registerWebhookRawBodyParser) to capture the raw body for webhook
+      // signature verification. Disable Nest's default body parser so it does
+      // not register a second application/json parser, which Fastify rejects
+      // with FST_ERR_CTP_ALREADY_PRESENT. This is a JSON-only API.
+      bodyParser: false,
     },
   );
 
