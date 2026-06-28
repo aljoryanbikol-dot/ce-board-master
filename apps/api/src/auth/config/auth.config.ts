@@ -40,8 +40,11 @@ export class AuthConfig {
       .get('JWT_PUBLIC_KEY', { infer: true })!
       .replace(/\\n/g, '\n');
 
-    this.accessTokenTtl  = configService.get('JWT_ACCESS_TOKEN_EXPIRES_IN', { infer: true })!;
-    this.refreshTokenTtl = configService.get('JWT_REFRESH_TOKEN_EXPIRES_IN', { infer: true })!;
+    // Coerce to Number: ConfigService can hand back the raw env string, and a
+    // unitless string TTL is read as milliseconds by jsonwebtoken (instant
+    // expiry). As numbers these are correctly treated as seconds.
+    this.accessTokenTtl  = Number(configService.get('JWT_ACCESS_TOKEN_EXPIRES_IN', { infer: true })) || 900;
+    this.refreshTokenTtl = Number(configService.get('JWT_REFRESH_TOKEN_EXPIRES_IN', { infer: true })) || 2592000;
     this.argon2Pepper    = configService.get('ARGON2_PEPPER', { infer: true })!;
     this.frontendUrl     = configService.get('FRONTEND_URL', { infer: true })!;
     this.isProduction    = configService.get('NODE_ENV', { infer: true }) === 'production';

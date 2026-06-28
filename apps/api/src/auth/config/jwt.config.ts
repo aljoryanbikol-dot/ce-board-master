@@ -40,7 +40,10 @@ export function jwtConfig(
     .get('JWT_PUBLIC_KEY', { infer: true })!
     .replace(/\\n/g, '\n');
 
-  const accessTokenTtl = configService.get('JWT_ACCESS_TOKEN_EXPIRES_IN', { infer: true });
+  // Coerce to a Number: ConfigService can return the raw env string ("900"),
+  // and jsonwebtoken treats a unitless string as MILLISECONDS — so "900" would
+  // expire the token in 0.9s. As a number it is correctly interpreted as seconds.
+  const accessTokenTtl = Number(configService.get('JWT_ACCESS_TOKEN_EXPIRES_IN', { infer: true })) || 900;
 
   return {
     privateKey,
