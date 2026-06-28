@@ -11,6 +11,7 @@ import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight, CheckCircle2, 
 import { questionsApi, difficultyApi, type QuestionSummary, type QuestionStatus } from '@/features/admin/api/questions-api';
 import { subjectsApi, topicsApi, subtopicsApi } from '@/features/admin/api/taxonomy-api';
 import { MathText } from '@/components/common/math-text';
+import { MarkdownMath } from '@/components/common/markdown-math';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -28,14 +29,20 @@ interface FormState {
   subjectId: string; topicId: string; subtopicId: string; questionCode: string;
   stemText: string; choices: string[]; correctChoice: string; explanationText: string;
   difficultyLevelId: string; questionType: string; bloomLevel: string;
-  estSolvingTimeSec: number; prcSyllabusRef: string; keywords: string; version?: number;
+  estSolvingTimeSec: number; prcSyllabusRef: string; keywords: string;
+  learningObjective: string; boardYears: string; engineeringNotes: string; commonMistakes: string[];
+  version?: number;
 }
 const blank = (): FormState => ({
   subjectId: '', topicId: '', subtopicId: '', questionCode: '', stemText: '',
   choices: ['', '', '', ''], correctChoice: 'A', explanationText: '',
   difficultyLevelId: '', questionType: 'multiple_choice', bloomLevel: 'apply',
   estSolvingTimeSec: 90, prcSyllabusRef: '', keywords: '',
+  learningObjective: '', boardYears: '', engineeringNotes: '', commonMistakes: [],
 });
+
+const parseYears = (s: string): number[] =>
+  s.split(',').map((y) => parseInt(y.trim(), 10)).filter((n) => Number.isFinite(n) && n >= 1900 && n <= 2100);
 
 const statusVariant = (s: string): 'success' | 'outline' | 'destructive' | 'warning' =>
   s === 'published' ? 'success' : s === 'archived' ? 'outline' : s === 'flagged' ? 'destructive' : 'warning';
@@ -83,12 +90,22 @@ export default function QuestionsAdminPage() {
     mutationFn: async () => {
       const choices = LETTERS.map((l, i) => ({ letter: l, text: form.choices[i] }));
       const keywords = form.keywords.split(',').map((k) => k.trim()).filter(Boolean);
+      const mistakes = form.commonMistakes.map((m) => m.trim()).filter(Boolean);
+      const intelligence = (form.engineeringNotes.trim() || mistakes.length)
+        ? { engineeringNotes: form.engineeringNotes.trim() || undefined, commonMistakes: mistakes }
+        : undefined;
+      const pedagogy = {
+        learningObjective: form.learningObjective.trim() || undefined,
+        prcYearAppeared: parseYears(form.boardYears),
+        prcSyllabusRef: form.prcSyllabusRef || undefined,
+        ...(intelligence ? { intelligence } : {}),
+      };
       if (editingId) {
         const body: Record<string, unknown> = {
           stemText: form.stemText, choices, correctChoice: form.correctChoice, explanationText: form.explanationText,
           difficultyLevelId: form.difficultyLevelId, subtopicId: form.subtopicId, questionType: form.questionType,
           bloomLevel: form.bloomLevel, estSolvingTimeSec: Number(form.estSolvingTimeSec),
-          prcSyllabusRef: form.prcSyllabusRef || undefined, keywords, ...(form.version ? { version: form.version } : {}),
+          keywords, ...pedagogy, ...(form.version ? { version: form.version } : {}),
         };
         return questionsApi.update(editingId, body);
       }
@@ -96,7 +113,7 @@ export default function QuestionsAdminPage() {
         questionCode: form.questionCode, subjectId: form.subjectId, topicId: form.topicId, subtopicId: form.subtopicId,
         difficultyLevelId: form.difficultyLevelId, stemText: form.stemText, choices, correctChoice: form.correctChoice,
         explanationText: form.explanationText, questionType: form.questionType, bloomLevel: form.bloomLevel,
-        estSolvingTimeSec: Number(form.estSolvingTimeSec), prcSyllabusRef: form.prcSyllabusRef || undefined, keywords, language: 'en',
+        estSolvingTimeSec: Number(form.estSolvingTimeSec), keywords, language: 'en', ...pedagogy,
       });
     },
     onSuccess: () => { toast.success(editingId ? 'Saved' : 'Created', `Question ${editingId ? 'updated' : 'created (draft)'}.`); setOpen(false); setEditingId(null); invalidate(); },
@@ -127,7 +144,10 @@ export default function QuestionsAdminPage() {
         stemText: d.stemText, choices: LETTERS.map((l) => byLetter.get(l) ?? ''), correctChoice: d.correctChoice,
         explanationText: d.explanationText, difficultyLevelId: d.difficultyLevelId, questionType: d.questionType,
         bloomLevel: d.bloomLevel, estSolvingTimeSec: d.estSolvingTimeSec, prcSyllabusRef: d.prcSyllabusRef ?? '',
-        keywords: (d as { keywords?: string[] }).keywords?.join(', ') ?? '', version: d.currentVersion,
+        keywords: d.keywords?.join(', ') ?? '',
+        learningObjective: d.learningObjective ?? '', boardYears: (d.prcYearAppeared ?? []).join(', '),
+        engineeringNotes: d.engineeringNotes ?? '', commonMistakes: d.commonMistakes ?? [],
+        version: d.currentVersion,
       });
     } catch (e) { toast.fromError(e, 'Could not load question'); setOpen(false); }
     finally { setLoadingForm(false); }
@@ -234,7 +254,7 @@ export default function QuestionsAdminPage() {
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Edit question' : 'New question'}</DialogTitle>
-            <DialogDescription>Use <code>$…$</code> for inline math and <code>$$…$$</code> for block math (KaTeX).</DialogDescription>
+            <DialogDescription>Supports <strong>Markdown</strong>, KaTeX (<code>$…$</code> inline, <code>$$…$$</code> block) and inline diagrams via <code>![alt](image-url)</code>.</DialogDescription>
           </DialogHeader>
           {loadingForm ? <div className="py-10 text-center"><Spinner /></div> : (
           <form onSubmit={(e) => { e.preventDefault(); saveMut.mutate(); }} className="space-y-4 py-2">
@@ -270,8 +290,8 @@ export default function QuestionsAdminPage() {
 
             <div>
               <label className="mb-1 block text-sm font-medium">Stem *</label>
-              <textarea className="w-full rounded-lg border bg-background p-2 text-sm" rows={3} value={form.stemText} onChange={(e) => setF({ stemText: e.target.value })} required minLength={10} />
-              {form.stemText ? <div className="mt-1 rounded border bg-muted/30 p-2 text-sm"><span className="text-xs text-muted-foreground">Preview: </span><MathText text={form.stemText} /></div> : null}
+              <textarea className="w-full rounded-lg border bg-background p-2 font-mono text-sm" rows={4} value={form.stemText} onChange={(e) => setF({ stemText: e.target.value })} required minLength={10} />
+              {form.stemText ? <div className="mt-1 rounded border bg-muted/30 p-2"><span className="text-xs text-muted-foreground">Preview</span><MarkdownMath text={form.stemText} /></div> : null}
             </div>
 
             <div className="space-y-2">
@@ -287,7 +307,8 @@ export default function QuestionsAdminPage() {
 
             <div>
               <label className="mb-1 block text-sm font-medium">Explanation *</label>
-              <textarea className="w-full rounded-lg border bg-background p-2 text-sm" rows={2} value={form.explanationText} onChange={(e) => setF({ explanationText: e.target.value })} required minLength={10} />
+              <textarea className="w-full rounded-lg border bg-background p-2 font-mono text-sm" rows={4} value={form.explanationText} onChange={(e) => setF({ explanationText: e.target.value })} required minLength={10} />
+              {form.explanationText ? <div className="mt-1 rounded border bg-muted/30 p-2"><span className="text-xs text-muted-foreground">Preview</span><MarkdownMath text={form.explanationText} /></div> : null}
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -310,6 +331,37 @@ export default function QuestionsAdminPage() {
               </div>
               <div><label className="mb-1 block text-sm font-medium">Keywords (comma)</label>
                 <Input value={form.keywords} onChange={(e) => setF({ keywords: e.target.value })} placeholder="beam, shear" />
+              </div>
+              <div><label className="mb-1 block text-sm font-medium">Board year(s)</label>
+                <Input value={form.boardYears} onChange={(e) => setF({ boardYears: e.target.value })} placeholder="2019, 2022" />
+              </div>
+            </div>
+
+            <div className="space-y-4 rounded-lg border border-dashed p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pedagogy &amp; engineering notes</p>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Learning objective</label>
+                <textarea className="w-full rounded-lg border bg-background p-2 text-sm" rows={2} value={form.learningObjective} onChange={(e) => setF({ learningObjective: e.target.value })} placeholder="What concept does this question assess?" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Engineering notes</label>
+                <textarea className="w-full rounded-lg border bg-background p-2 font-mono text-sm" rows={3} value={form.engineeringNotes} onChange={(e) => setF({ engineeringNotes: e.target.value })} placeholder="Examiner notes, derivations, assumptions… (Markdown + KaTeX)" />
+                {form.engineeringNotes ? <div className="mt-1 rounded border bg-muted/30 p-2"><span className="text-xs text-muted-foreground">Preview</span><MarkdownMath text={form.engineeringNotes} /></div> : null}
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="block text-sm font-medium">Common mistakes</label>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setF({ commonMistakes: [...form.commonMistakes, ''] })}><Plus className="h-3 w-3" /> Add</Button>
+                </div>
+                {form.commonMistakes.length === 0 ? <p className="text-xs text-muted-foreground">No common mistakes added.</p> : null}
+                <div className="space-y-2">
+                  {form.commonMistakes.map((m, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input value={m} onChange={(e) => setF({ commonMistakes: form.commonMistakes.map((x, j) => (j === i ? e.target.value : x)) })} placeholder={`Mistake ${i + 1}`} />
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setF({ commonMistakes: form.commonMistakes.filter((_, j) => j !== i) })}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 

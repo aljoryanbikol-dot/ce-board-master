@@ -29,8 +29,12 @@ export interface QuestionDetail extends QuestionSummary {
   explanationText: string;
   learningObjective: string | null;
   prcSyllabusRef: string | null;
+  prcYearAppeared: number[];
+  engineeringNotes: string | null;
+  commonMistakes: string[];
   estSolvingTimeSec: number;
   language: string;
+  keywords?: string[];
   choices: ChoiceView[];
 }
 

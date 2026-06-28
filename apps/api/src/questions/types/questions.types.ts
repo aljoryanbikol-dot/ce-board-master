@@ -47,6 +47,9 @@ export interface QuestionDetail extends QuestionSummary {
   explanationHtml:   string | null;
   learningObjective: string | null;
   prcSyllabusRef:    string | null;
+  prcYearAppeared:   number[];
+  engineeringNotes:  string | null;
+  commonMistakes:    string[];
   estSolvingTimeSec: number;
   language:          string;
   publishedBy:       string | null;

@@ -46,6 +46,7 @@ import type { AuthenticatedUser } from '../../auth/auth.types';
 const QUESTION_INCLUDE = {
   choices: true,
   questionTags: { select: { tagId: true } },
+  intelligence: true,
 } as const;
 
 @Injectable()
@@ -86,6 +87,7 @@ export class QuestionService {
           questionType:      dto.questionType,
           learningObjective: dto.learningObjective ?? null,
           prcSyllabusRef:    dto.prcSyllabusRef ?? null,
+          prcYearAppeared:   dto.prcYearAppeared,
           estSolvingTimeSec: dto.estSolvingTimeSec,
           language:          dto.language,
           keywords:          dto.keywords,
@@ -106,6 +108,17 @@ export class QuestionService {
           },
           ...(dto.tags.length > 0 && {
             questionTags: { create: dto.tags.map((tagId) => ({ tagId })) },
+          }),
+          ...(dto.intelligence && (dto.intelligence.engineeringNotes != null || (dto.intelligence.commonMistakes?.length ?? 0) > 0) && {
+            intelligence: {
+              create: {
+                examineerNotes: dto.intelligence.engineeringNotes ?? null,
+                ...(dto.intelligence.commonMistakes && dto.intelligence.commonMistakes.length > 0 && {
+                  commonMistakes: dto.intelligence.commonMistakes as unknown as Prisma.InputJsonValue,
+                }),
+                authoredBy: author.id,
+              },
+            },
           }),
         },
         include: QUESTION_INCLUDE,
@@ -213,6 +226,24 @@ export class QuestionService {
         }
       }
 
+      // Upsert pedagogy/intelligence (Engineering Notes + Common Mistakes) if supplied
+      if (dto.intelligence) {
+        const mistakes = dto.intelligence.commonMistakes;
+        await tx.questionIntelligence.upsert({
+          where: { questionId: id },
+          create: {
+            questionId: id,
+            examineerNotes: dto.intelligence.engineeringNotes ?? null,
+            ...(mistakes ? { commonMistakes: mistakes as unknown as Prisma.InputJsonValue } : {}),
+            authoredBy: requester.id,
+          },
+          update: {
+            ...(dto.intelligence.engineeringNotes !== undefined && { examineerNotes: dto.intelligence.engineeringNotes }),
+            ...(mistakes !== undefined && { commonMistakes: mistakes as unknown as Prisma.InputJsonValue }),
+          },
+        });
+      }
+
       const q = await tx.question.update({
         where: { id },
         data: {
@@ -227,6 +258,7 @@ export class QuestionService {
           ...(dto.questionType      !== undefined && { questionType: dto.questionType }),
           ...(dto.learningObjective !== undefined && { learningObjective: dto.learningObjective }),
           ...(dto.prcSyllabusRef    !== undefined && { prcSyllabusRef: dto.prcSyllabusRef }),
+          ...(dto.prcYearAppeared   !== undefined && { prcYearAppeared: dto.prcYearAppeared }),
           ...(dto.estSolvingTimeSec !== undefined && { estSolvingTimeSec: dto.estSolvingTimeSec }),
           ...(dto.difficultyLevelId !== undefined && { difficultyLevelId: dto.difficultyLevelId }),
           ...(dto.subtopicId        !== undefined && { subtopicId: dto.subtopicId }),

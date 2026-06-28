@@ -23,6 +23,15 @@ const ChoiceSchema = z.object({
   sortOrder:   z.coerce.number().int().min(0).max(9).optional(),
 });
 
+// ── Pedagogy / intelligence sub-schema ───────────────────────────────────────
+// Maps to the existing QuestionIntelligence model (1:1 satellite). "Engineering
+// Notes" → examineerNotes; "Common Mistakes" → commonMistakes. No migration.
+
+export const QuestionIntelligenceSchema = z.object({
+  engineeringNotes: z.string().trim().max(8000).nullable().optional(),
+  commonMistakes:   z.array(z.string().trim().min(1).max(1000)).max(20).optional(),
+});
+
 // ── Create ────────────────────────────────────────────────────────────────────
 
 export const CreateQuestionSchema = z.object({
@@ -41,12 +50,14 @@ export const CreateQuestionSchema = z.object({
   explanationHtml:   z.string().trim().max(32000).nullable().optional(),
   bloomLevel:        z.enum(BLOOM_LEVELS).default('apply'),
   questionType:      z.enum(QUESTION_TYPES).default('multiple_choice'),
-  learningObjective: z.string().trim().max(1000).nullable().optional(),
+  learningObjective: z.string().trim().max(2000).nullable().optional(),
   prcSyllabusRef:    z.string().trim().max(100).nullable().optional(),
+  prcYearAppeared:   z.array(z.coerce.number().int().min(1900).max(2100)).max(50).default([]),
   estSolvingTimeSec: z.coerce.number().int().min(5).max(3600).default(90),
   language:          z.string().trim().length(2).default('en'),
   keywords:          z.array(z.string().trim().max(50)).max(30).default([]),
   tags:              z.array(z.string().uuid()).max(30).default([]),
+  intelligence:      QuestionIntelligenceSchema.optional(),
   isAiGenerated:     z.boolean().default(false),
 }).superRefine((data, ctx) => {
   // Correct choice must exist among the provided letters
@@ -75,13 +86,15 @@ export const UpdateQuestionSchema = z.object({
   explanationHtml:   z.string().trim().max(32000).nullable().optional(),
   bloomLevel:        z.enum(BLOOM_LEVELS).optional(),
   questionType:      z.enum(QUESTION_TYPES).optional(),
-  learningObjective: z.string().trim().max(1000).nullable().optional(),
+  learningObjective: z.string().trim().max(2000).nullable().optional(),
   prcSyllabusRef:    z.string().trim().max(100).nullable().optional(),
+  prcYearAppeared:   z.array(z.coerce.number().int().min(1900).max(2100)).max(50).optional(),
   estSolvingTimeSec: z.coerce.number().int().min(5).max(3600).optional(),
   difficultyLevelId: z.string().uuid().optional(),
   subtopicId:        z.string().uuid().optional(),
   keywords:          z.array(z.string().trim().max(50)).max(30).optional(),
   tags:              z.array(z.string().uuid()).max(30).optional(),
+  intelligence:      QuestionIntelligenceSchema.optional(),
   changeSummary:     z.string().trim().max(500).optional(),
   /** Optimistic locking — the currentVersion the client last read. */
   version:           z.coerce.number().int().min(1).optional(),

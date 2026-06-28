@@ -35,12 +35,14 @@ interface QuestionRow {
   explanationText: string; explanationLatex: string | null; explanationHtml: string | null;
   questionStatus: string; bloomLevel: string; questionType: string;
   learningObjective: string | null; prcSyllabusRef: string | null;
+  prcYearAppeared?: number[];
   estSolvingTimeSec: number; language: string;
   authorId: string; reviewerId: string | null; publishedBy: string | null;
   currentVersion: number; isPrcVerified: boolean; isAiGenerated: boolean;
   publishedAt: Date | null; createdAt: Date; updatedAt: Date;
   choices?: ChoiceRow[];
   questionTags?: { tagId: string }[];
+  intelligence?: { examineerNotes: string | null; commonMistakes: unknown } | null;
 }
 
 @Injectable()
@@ -92,6 +94,9 @@ export class QuestionMapperService {
       explanationHtml:   q.explanationHtml,
       learningObjective: q.learningObjective,
       prcSyllabusRef:    q.prcSyllabusRef,
+      prcYearAppeared:   q.prcYearAppeared ?? [],
+      engineeringNotes:  q.intelligence?.examineerNotes ?? null,
+      commonMistakes:    Array.isArray(q.intelligence?.commonMistakes) ? (q.intelligence?.commonMistakes as string[]) : [],
       estSolvingTimeSec: q.estSolvingTimeSec,
       language:          q.language,
       publishedBy:       q.publishedBy,
