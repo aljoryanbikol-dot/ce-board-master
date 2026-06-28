@@ -49,11 +49,14 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 COPY --from=builder /app ./
 # Produce a flat, symlink-free production bundle for the api at /app/deploy.
 RUN pnpm --filter @ce-board-master/api deploy --prod /app/deploy
-# Bring the generated Prisma client into the deployed node_modules (it lives in
-# the builder's store-linked path; copy the materialized client + engines).
-RUN mkdir -p /app/deploy/node_modules/.prisma \
-  && cp -R /app/apps/api/node_modules/.prisma/* /app/deploy/node_modules/.prisma/ 2>/dev/null || true \
-  && cp -R /app/node_modules/.prisma/* /app/deploy/node_modules/.prisma/ 2>/dev/null || true
+# Regenerate the Prisma client *inside the deployed bundle*. `pnpm deploy` ships a
+# fresh @prisma/client copied from the content-addressable store WITHOUT any
+# generated output, and the package postinstall regenerates into the source tree
+# (a schema-relative path that escapes /app/deploy) — so the runtime client would
+# be missing its model methods and enums (e.g. PaymentMethodType), crashing on
+# boot. Generating here against the bundle's own schema + node_modules writes the
+# real client (and the linux-musl query engine) into /app/deploy/node_modules.
+RUN cd /app/deploy && node_modules/.bin/prisma generate --schema=prisma/schema.prisma
 
 # ── Stage 4: runner ──────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
