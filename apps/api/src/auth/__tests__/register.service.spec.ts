@@ -24,6 +24,8 @@ const mockPrisma = {
 const mockPasswordService = { hash: vi.fn().mockResolvedValue('$argon2id$hashed') };
 const mockTokenService    = { generateOneTimeToken: vi.fn().mockResolvedValue('raw-token-abc123') };
 const mockEmailService    = { sendVerificationEmail: vi.fn().mockResolvedValue(undefined) };
+// AUTH_AUTO_VERIFY unset (undefined) → standard verification-email flow.
+const mockConfigService   = { get: vi.fn().mockReturnValue(undefined) };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,6 +35,7 @@ const buildService = () =>
     mockPasswordService as any,
     mockTokenService as any,
     mockEmailService as any,
+    mockConfigService as any,
   );
 
 const validDto = {

@@ -48,6 +48,10 @@ const EnvironmentSchema = z.object({
   JWT_ACCESS_TOKEN_EXPIRES_IN: z.coerce.number().default(900),
   JWT_REFRESH_TOKEN_EXPIRES_IN: z.coerce.number().default(2592000),
 
+  // Auth — when true, new registrations are created already-verified (use until
+  // transactional email is configured; flip off once verification emails work).
+  AUTH_AUTO_VERIFY: z.coerce.boolean().default(false),
+
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),

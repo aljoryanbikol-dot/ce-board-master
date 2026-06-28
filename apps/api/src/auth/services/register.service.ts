@@ -30,11 +30,13 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { EmailService } from './email.service';
 import type { RegisterDto } from '../auth.dto';
+import type { AppEnvironment } from '../../config/configuration';
 
 export interface RegisterResult {
   userId: string;
@@ -51,6 +53,7 @@ export class RegisterService {
     private readonly passwordService: PasswordService,
     private readonly tokenService: TokenService,
     private readonly emailService: EmailService,
+    private readonly config: ConfigService<AppEnvironment>,
   ) {}
 
   /**
@@ -62,6 +65,11 @@ export class RegisterService {
    */
   async register(dto: RegisterDto, ipAddress?: string): Promise<RegisterResult> {
     const { firstName, lastName, email, password, examTargetDate, school } = dto;
+
+    // When email delivery isn't configured yet, AUTH_AUTO_VERIFY lets accounts
+    // be usable immediately (created active + verified, no verification email).
+    // Flip this off once real verification emails are wired up.
+    const autoVerify = this.config.get('AUTH_AUTO_VERIFY', { infer: true }) === true;
 
     // ── 1. Duplicate-email guard ──────────────────────────────────────────────
     // Check BEFORE hashing to avoid ~200ms Argon2 work on duplicate requests.
@@ -101,8 +109,10 @@ export class RegisterService {
           email,
           passwordHash,
           roleId: role.id,
-          status: 'pending',   // Becomes 'active' after email verification
-          isVerified: false,
+          // 'pending' → 'active' after email verification; 'active' immediately
+          // when auto-verify is enabled (no email step).
+          status: autoVerify ? 'active' : 'pending',
+          isVerified: autoVerify,
           isActive: true,
           lastLoginIp: ipAddress ?? null,
         },
@@ -125,25 +135,29 @@ export class RegisterService {
 
     // ── 5. Generate + dispatch verification email ─────────────────────────────
     // Token generated AFTER the transaction commits — avoids orphaned tokens
-    // if the transaction rolls back.
-    try {
-      const rawToken = await this.tokenService.generateOneTimeToken(user.id, 'email_verify');
-      await this.emailService.sendVerificationEmail(email, firstName, rawToken);
-    } catch (emailError) {
-      // Log but do NOT roll back the registration — the user can resend later
-      this.logger.error({
-        message: 'Failed to send verification email after registration',
-        userId: user.id,
-        error: emailError instanceof Error ? emailError.message : 'unknown',
-      });
+    // if the transaction rolls back. Skipped entirely when auto-verify is on.
+    if (!autoVerify) {
+      try {
+        const rawToken = await this.tokenService.generateOneTimeToken(user.id, 'email_verify');
+        await this.emailService.sendVerificationEmail(email, firstName, rawToken);
+      } catch (emailError) {
+        // Log but do NOT roll back the registration — the user can resend later
+        this.logger.error({
+          message: 'Failed to send verification email after registration',
+          userId: user.id,
+          error: emailError instanceof Error ? emailError.message : 'unknown',
+        });
+      }
     }
 
-    this.logger.log({ message: 'User registered', userId: user.id, email, ipAddress });
+    this.logger.log({ message: 'User registered', userId: user.id, email, ipAddress, autoVerify });
 
     return {
       userId: user.id,
       email: user.email,
-      message: 'Account created. Please check your email to verify your address.',
+      message: autoVerify
+        ? 'Account created. You can now sign in.'
+        : 'Account created. Please check your email to verify your address.',
     };
   }
 }
