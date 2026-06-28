@@ -69,7 +69,10 @@ export class RegisterService {
     // When email delivery isn't configured yet, AUTH_AUTO_VERIFY lets accounts
     // be usable immediately (created active + verified, no verification email).
     // Flip this off once real verification emails are wired up.
-    const autoVerify = this.config.get('AUTH_AUTO_VERIFY', { infer: true }) === true;
+    // ConfigService can hand back the raw process.env string ("true") rather
+    // than the Zod-coerced boolean, so normalise via String() to accept either.
+    const autoVerify =
+      String(this.config.get('AUTH_AUTO_VERIFY', { infer: true })) === 'true';
 
     // ── 1. Duplicate-email guard ──────────────────────────────────────────────
     // Check BEFORE hashing to avoid ~200ms Argon2 work on duplicate requests.
