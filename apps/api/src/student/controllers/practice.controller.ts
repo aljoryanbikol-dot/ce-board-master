@@ -36,6 +36,12 @@ export class PracticeController {
     return this.practice.start(user.id, body);
   }
 
+  @Get('subjects')
+  @ApiOperation({ summary: 'List subjects with published questions (for the by-subject picker)' })
+  async listSubjects() {
+    return this.practice.listSubjects();
+  }
+
   @Get('sessions')
   @ApiOperation({ summary: 'List the student\'s practice sessions' })
   async listSessions(@Query(new ZodValidationPipe(PaginationSchema)) q: typeof PaginationSchema._type, @CurrentUser() user: AuthenticatedUser) {

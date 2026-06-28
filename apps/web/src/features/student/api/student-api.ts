@@ -40,6 +40,7 @@ export const studentApi = {
   history: () => api.data(api.get('/student/engagement/history')),
   // Practice
   recommendations: (subjectId?: string) => api.data(api.get('/student/practice/recommendations', { query: { subjectId } })),
+  practiceSubjects: () => api.data<Array<{ id: string; code: string; name: string }>>(api.get('/student/practice/subjects')),
   startPractice: (body: { mode: string; subjectId?: string; topicId?: string; count?: number }) => api.data(api.post('/student/practice/sessions', body)),
   answerPractice: (sessionId: string, body: { questionId: string; selectedChoice: string; timeSpentSec?: number }) =>
     api.data(api.post(`/student/practice/sessions/${sessionId}/answers`, body)),

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dumbbell, ArrowRight, Check, X } from 'lucide-react';
 import { studentApi } from '@/features/student/api/student-api';
 import { PageHeader } from '@/components/common/page-header';
@@ -27,11 +27,18 @@ export function PracticeView() {
   const [selected, setSelected] = useState<string | null>(null);
   const [result, setResult] = useState<AnswerResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [subjects, setSubjects] = useState<Array<{ id: string; name: string }>>([]);
+  const [subjectId, setSubjectId] = useState('');
 
-  async function start(mode: string) {
+  // Load the subjects that have published questions, for the "By subject" picker.
+  useEffect(() => {
+    studentApi.practiceSubjects().then((s) => setSubjects(s as Array<{ id: string; name: string }>)).catch(() => {});
+  }, []);
+
+  async function start(mode: string, subject?: string) {
     setLoading(true);
     try {
-      const s = await studentApi.startPractice({ mode, count: 10 }) as PracticeSession;
+      const s = await studentApi.startPractice({ mode, count: 10, ...(subject ? { subjectId: subject } : {}) }) as PracticeSession;
       setSession(s); setIdx(0); setSelected(null); setResult(null);
     } catch (err) {
       toast.fromError(err, 'Could not start a practice session');
@@ -71,7 +78,22 @@ export function PracticeView() {
               <CardHeader><CardTitle className="text-base">{m.label}</CardTitle></CardHeader>
               <CardContent>
                 <p className="mb-4 text-sm text-muted-foreground">{m.desc}</p>
-                <Button className="w-full" onClick={() => start(m.mode)} disabled={loading}>
+                {m.mode === 'subject' ? (
+                  <select
+                    value={subjectId}
+                    onChange={(e) => setSubjectId(e.target.value)}
+                    className="mb-3 w-full rounded-lg border bg-background p-2 text-sm"
+                    aria-label="Select a subject"
+                  >
+                    <option value="">Select a subject…</option>
+                    {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                ) : null}
+                <Button
+                  className="w-full"
+                  onClick={() => start(m.mode, m.mode === 'subject' ? subjectId : undefined)}
+                  disabled={loading || (m.mode === 'subject' && !subjectId)}
+                >
                   {loading ? <Spinner className="text-primary-foreground" /> : <>Start <ArrowRight className="h-4 w-4" /></>}
                 </Button>
               </CardContent>

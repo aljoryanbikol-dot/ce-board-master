@@ -85,6 +85,15 @@ export class PracticeSessionService {
     return { sessionId: session.id, mode: session.mode, targetCount: session.targetCount, questionIds: selectedIds, questions };
   }
 
+  /** Subjects that currently have at least one published question (for the "by subject" picker). */
+  async listSubjects() {
+    return this.prisma.subject.findMany({
+      where: { questions: { some: { questionStatus: 'published', deletedAt: null } } },
+      select: { id: true, code: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async getSession(userId: string, sessionId: string) {
     const session = await this.prisma.practiceSession.findUnique({ where: { id: sessionId } });
     if (!session) throw StudentErrors.sessionNotFound(sessionId);
