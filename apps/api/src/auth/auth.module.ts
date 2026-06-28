@@ -48,6 +48,7 @@ import { JwtStrategy }        from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { LocalStrategy }      from './strategies/local.strategy';
 import { GoogleStrategy }     from './strategies/google.strategy';
+import { PrismaService }      from '../database/prisma.service';
 
 // Guards
 import { JwtAuthGuard }      from './guards/jwt-auth.guard';
@@ -103,7 +104,17 @@ import type { AppEnvironment } from '../config/configuration';
     JwtStrategy,
     JwtRefreshStrategy,
     LocalStrategy,
-    GoogleStrategy,
+    // Google OAuth is optional: passport-google-oauth20 throws if clientID is
+    // missing, so only register the strategy when GOOGLE_CLIENT_ID is set.
+    // When unconfigured the /auth/google routes are simply inactive.
+    {
+      provide: GoogleStrategy,
+      useFactory: (config: ConfigService<AppEnvironment>, prisma: PrismaService) => {
+        const clientId = config.get('GOOGLE_CLIENT_ID', { infer: true });
+        return clientId ? new GoogleStrategy(config, prisma) : null;
+      },
+      inject: [ConfigService, PrismaService],
+    },
 
     // ── Guards ────────────────────────────────────────────────────────────────
     JwtAuthGuard,
