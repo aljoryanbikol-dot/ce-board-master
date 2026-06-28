@@ -20,12 +20,7 @@
  * When the new role is "higher" (more sortOrder), the primary role_id
  * is also updated so the JWT claim reflects the highest role.
  */
-import {
-  ForbiddenException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../database/prisma.service';
 import { CacheService } from '../../cache/cache.service';
@@ -193,8 +188,13 @@ export class UserRoleService {
       orderBy: { grantedAt: 'desc' },
     });
 
-    return userRoles.map((ur) =>
-      this.toAssignment({ ...ur, expiresAt: ur.expiresAt ?? null }),
+    return userRoles.map(
+      (ur: {
+        userId: string; roleId: string;
+        role: { id?: string; slug: string; name: string };
+        grantedAt: Date; grantedBy: string | null;
+        expiresAt: Date | null; isActive: boolean;
+      }) => this.toAssignment({ ...ur, expiresAt: ur.expiresAt ?? null }),
     );
   }
 
@@ -320,7 +320,7 @@ export class UserRoleService {
       where:   { userId, isActive: true },
       include: { role: { select: { slug: true } } },
     });
-    return userRoles.map((ur) => ur.role.slug);
+    return userRoles.map((ur: { role: { slug: string } }) => ur.role.slug);
   }
 
   private async recalculatePrimaryRole(userId: string): Promise<void> {

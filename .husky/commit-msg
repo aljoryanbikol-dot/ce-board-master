@@ -1,7 +1,6 @@
-#!/usr/bin/env sh
-# Husky hook: validates commit message format via commitlint
-# Runs before every git commit to enforce Conventional Commits.
-# See commitlint.config.js for rules.
-. "$(dirname -- "$0")/_/husky.sh"
-
-npx --no -- commitlint --edit "$1"
+# CE Board Master — commit-msg hook.
+# Validates the commit message against Conventional Commits via commitlint.
+# Uses `pnpm exec` (not npx) because npx mis-quotes paths containing spaces on
+# Windows (e.g. "C:\Users\Gavino Family\...") and fails with
+# "'C:\Users\Gavino' is not recognized as an internal or external command".
+pnpm exec commitlint --edit "$1"

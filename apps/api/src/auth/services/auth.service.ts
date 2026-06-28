@@ -185,7 +185,7 @@ export class AuthService implements IAuthService {
           return [];
         }
 
-        const permissions = role.rolePermissions.map((rp) => rp.permission.slug);
+        const permissions = role.rolePermissions.map((rp: { permission: { slug: string } }) => rp.permission.slug);
 
         this.logger.debug({
           message: 'Role permissions loaded from DB and cached',

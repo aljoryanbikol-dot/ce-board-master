@@ -5,18 +5,8 @@ packages:
   - "apps/*"
   - "packages/*"
 
-allowBuilds:
-  '@nestjs/core': set this to true or false
-  '@prisma/client': set this to true or false
-  '@prisma/engines': set this to true or false
-  '@scarf/scarf': set this to true or false
-  argon2: set this to true or false
-  esbuild: set this to true or false
-  msgpackr-extract: set this to true or false
-  prisma: set this to true or false
-  sharp: set this to true or false
-
-# Dependencies allowed to run install/build scripts (pnpm v9+ approval list).
+# Dependencies approved to run their install/build scripts (pnpm v9+).
+# Listing a package here is what "approves" it — pnpm uses a list, not key:true.
 onlyBuiltDependencies:
   - "@nestjs/core"
   - "@prisma/client"

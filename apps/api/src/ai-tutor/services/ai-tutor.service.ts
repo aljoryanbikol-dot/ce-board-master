@@ -71,7 +71,7 @@ export class AITutorService {
     let citations: Citation[];
     let followUps: string[];
     let groundedInKb: boolean;
-    let providerName = this.provider.name;
+    const providerName = this.provider.name;
 
     if (intent === 'explain_question' && dto.questionId) {
       const r = await this.explanation.explainQuestion(dto.questionId);

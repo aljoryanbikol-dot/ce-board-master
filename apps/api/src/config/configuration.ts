@@ -21,15 +21,16 @@ const EnvironmentSchema = z.object({
   API_PREFIX: z.string().default('api/v1'),
   APP_NAME: z.string().default('CE Board Master API'),
   APP_VERSION: z.string().default('1.0.0'),
-  APP_URL: z.string().url(),
+  APP_URL: z.string().url().optional(),
   FRONTEND_URL: z.string().url(),
-  ADMIN_URL: z.string().url(),
+  ADMIN_URL: z.string().url().optional(),
   CORS_ORIGINS: z.string(),
 
-  // Database
+  // Database. Only DATABASE_URL is required; the pooled + analytics URLs fall
+  // back to it (single-database deployments are the common case).
   DATABASE_URL: z.string().min(1),
-  DATABASE_POOL_URL: z.string().min(1),
-  DATABASE_ANALYTICS_URL: z.string().min(1),
+  DATABASE_POOL_URL: z.string().min(1).optional(),
+  DATABASE_ANALYTICS_URL: z.string().min(1).optional(),
 
   // Redis
   REDIS_HOST: z.string().default('localhost'),
@@ -48,30 +49,30 @@ const EnvironmentSchema = z.object({
   JWT_REFRESH_TOKEN_EXPIRES_IN: z.coerce.number().default(2592000),
 
   // Google OAuth
-  GOOGLE_CLIENT_ID: z.string().min(1),
-  GOOGLE_CLIENT_SECRET: z.string().min(1),
-  GOOGLE_CALLBACK_URL: z.string().url(),
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  GOOGLE_CALLBACK_URL: z.string().url().optional(),
 
   // AWS
   AWS_REGION: z.string().default('ap-southeast-1'),
-  AWS_ACCESS_KEY_ID: z.string().min(1),
-  AWS_SECRET_ACCESS_KEY: z.string().min(1),
-  AWS_S3_BUCKET: z.string().min(1),
+  AWS_ACCESS_KEY_ID: z.string().min(1).optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  AWS_S3_BUCKET: z.string().min(1).optional(),
   AWS_S3_PRESIGN_EXPIRY: z.coerce.number().default(900),
-  CDN_DOMAIN: z.string().url(),
+  CDN_DOMAIN: z.string().url().optional(),
 
   // Stripe
-  STRIPE_SECRET_KEY: z.string().min(1),
-  STRIPE_WEBHOOK_SECRET: z.string().min(1),
-  STRIPE_PRICE_BASIC_MONTHLY: z.string().min(1),
-  STRIPE_PRICE_BASIC_ANNUAL: z.string().min(1),
-  STRIPE_PRICE_PRO_MONTHLY: z.string().min(1),
-  STRIPE_PRICE_PRO_ANNUAL: z.string().min(1),
+  STRIPE_SECRET_KEY: z.string().min(1).optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
+  STRIPE_PRICE_BASIC_MONTHLY: z.string().min(1).optional(),
+  STRIPE_PRICE_BASIC_ANNUAL: z.string().min(1).optional(),
+  STRIPE_PRICE_PRO_MONTHLY: z.string().min(1).optional(),
+  STRIPE_PRICE_PRO_ANNUAL: z.string().min(1).optional(),
 
   // PayMongo
-  PAYMONGO_SECRET_KEY: z.string().min(1),
-  PAYMONGO_PUBLIC_KEY: z.string().min(1),
-  PAYMONGO_WEBHOOK_SECRET: z.string().min(1),
+  PAYMONGO_SECRET_KEY: z.string().min(1).optional(),
+  PAYMONGO_PUBLIC_KEY: z.string().min(1).optional(),
+  PAYMONGO_WEBHOOK_SECRET: z.string().min(1).optional(),
 
   // Xendit (Sprint 2.5)
   XENDIT_SECRET_KEY: z.string().min(1).optional(),
@@ -83,13 +84,13 @@ const EnvironmentSchema = z.object({
   PAYMENT_CURRENCY: z.string().default('PHP'),
 
   // Anthropic
-  ANTHROPIC_API_KEY: z.string().min(1),
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
   ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-6'),
   ANTHROPIC_MAX_TOKENS: z.coerce.number().default(4096),
   AI_TUTOR_DAILY_LIMIT: z.coerce.number().default(50),
 
   // Resend (Email)
-  RESEND_API_KEY: z.string().min(1),
+  RESEND_API_KEY: z.string().min(1).optional(),
   EMAIL_FROM: z.string().email(),
   EMAIL_FROM_NAME: z.string().default('CE Board Master'),
 
@@ -139,5 +140,13 @@ export default (): AppEnvironment => {
     );
   }
 
-  return result.data;
+  // Derive sensible fallbacks so a single-database, minimal-config deployment
+  // boots cleanly. The pooled + analytics connections default to DATABASE_URL.
+  const data = result.data;
+  data.DATABASE_POOL_URL ??= data.DATABASE_URL;
+  data.DATABASE_ANALYTICS_URL ??= data.DATABASE_URL;
+  data.APP_URL ??= data.FRONTEND_URL;
+  data.ADMIN_URL ??= data.FRONTEND_URL;
+
+  return data;
 };

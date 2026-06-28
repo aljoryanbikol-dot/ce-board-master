@@ -17,8 +17,27 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import type { AppEnvironment } from '@/config/configuration';
+
+/**
+ * Models that implement the soft-delete pattern (a nullable `deletedAt`
+ * timestamp). Reads on these models exclude rows where `deletedAt IS NOT NULL`.
+ */
+const SOFT_DELETE_MODELS: ReadonlySet<string> = new Set([
+  'User',
+  'Question',
+  'Subject',
+  'Topic',
+  'Subtopic',
+  'Tag',
+  'ReferenceBook',
+  'EngineeringCode',
+  'FormulaLibrary',
+]);
+
+/** Minimal structural view of a `where` clause we can augment. */
+type WhereArgs = { where?: Record<string, unknown> };
 
 @Injectable()
 export class PrismaService
@@ -48,39 +67,49 @@ export class PrismaService
           ],
     });
 
-    // Register soft-delete middleware
-    this.$use(async (params, next) => {
-      // Automatically filter deleted records from all find operations
-      const softDeleteModels = [
-        'User',
-        'Question',
-        'Subject',
-        'Topic',
-        'Subtopic',
-        'Tag',
-        'ReferenceBook',
-        'EngineeringCode',
-        'FormulaLibrary',
-      ];
+    // Prisma 5 removed the `$use` middleware API; soft-delete filtering is now
+    // applied through a client extension. Returning the extended client from the
+    // constructor makes every injected `PrismaService` transparently apply it.
+    return this.withSoftDelete();
+  }
 
-      if (softDeleteModels.includes(params.model ?? '')) {
-        if (params.action === 'findUnique' || params.action === 'findFirst') {
-          params.action = 'findFirst';
-          params.args.where = {
-            ...params.args.where,
-            deletedAt: null,
-          };
-        }
-
-        if (params.action === 'findMany') {
-          if (!params.args) params.args = {};
-          if (!params.args.where) params.args.where = {};
-          params.args.where.deletedAt = null;
-        }
-      }
-
-      return next(params);
+  /**
+   * Apply the soft-delete query extension. `findFirst`/`findMany` on soft-delete
+   * models gain a `deletedAt: null` filter; `findUnique` results that resolve to
+   * a soft-deleted row are treated as not found — mirroring the previous
+   * middleware behaviour.
+   */
+  private withSoftDelete(): this {
+    const extended = this.$extends({
+      query: {
+        $allModels: {
+          findFirst({ model, args, query }) {
+            if (SOFT_DELETE_MODELS.has(model)) {
+              const a = args as WhereArgs;
+              a.where = { ...a.where, deletedAt: null };
+            }
+            return query(args);
+          },
+          findMany({ model, args, query }) {
+            if (SOFT_DELETE_MODELS.has(model)) {
+              const a = args as WhereArgs;
+              a.where = { ...a.where, deletedAt: null };
+            }
+            return query(args);
+          },
+          async findUnique({ model, args, query }) {
+            const result = await query(args);
+            if (SOFT_DELETE_MODELS.has(model) && result !== null) {
+              const row = result as { deletedAt?: Date | null };
+              if (row.deletedAt != null) return null;
+            }
+            return result;
+          },
+        },
+      },
     });
+
+    return extended as unknown as this;
   }
 
   async onModuleInit(): Promise<void> {
@@ -88,10 +117,14 @@ export class PrismaService
       await this.$connect();
       this.logger.log('✅ Primary database connection established');
 
-      // Development query logging
+      // Development query logging. The base `PrismaClient` type does not narrow
+      // `$on` to the `query` event unless the log options are captured as a type
+      // argument, so we project a precise structural signature here.
       if (this.config.get('NODE_ENV', { infer: true }) === 'development') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (this as any).$on('query', (event: { query: string; duration: number }) => {
+        const queryLogger = this as unknown as {
+          $on(event: 'query', listener: (event: Prisma.QueryEvent) => void): void;
+        };
+        queryLogger.$on('query', (event) => {
           if (event.duration > 100) {
             this.logger.warn(
               `Slow query detected (${event.duration}ms): ${event.query.substring(0, 100)}`,
@@ -111,12 +144,12 @@ export class PrismaService
   }
 
   /**
-   * Execute a raw query within a transaction.
-   * Prefer Prisma's built-in transaction API over this method.
+   * Run a set of operations inside an interactive transaction.
+   * Prefer Prisma's built-in transaction API directly where possible.
    */
   async executeTransaction<T>(
-    fn: (prisma: Omit<PrismaService, '$transaction' | '$connect' | '$disconnect'>) => Promise<T>,
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
-    return this.$transaction(fn as Parameters<typeof this.$transaction>[0]);
+    return this.$transaction(fn);
   }
 }

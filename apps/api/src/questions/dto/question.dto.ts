@@ -9,7 +9,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CHOICE_LETTERS } from '../constants/questions.constants';
 
 const BLOOM_LEVELS = ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create'] as const;
-const QUESTION_TYPES = ['multiple_choice', 'numerical', 'true_false', 'multiple_answer'] as const;
+// Must mirror the Prisma `QuestionType` enum (prisma/schema.prisma).
+const QUESTION_TYPES = ['multiple_choice', 'computation', 'diagram_based'] as const;
 
 // ── Choice sub-schema ─────────────────────────────────────────────────────────
 

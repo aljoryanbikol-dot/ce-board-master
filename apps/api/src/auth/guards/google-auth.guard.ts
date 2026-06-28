@@ -36,7 +36,7 @@ export class GoogleAuthGuard extends AuthGuard(GOOGLE_STRATEGY) {
   handleRequest<TUser extends AuthenticatedUser>(
     err: Error | null,
     user: TUser | false,
-    info: unknown,
+    _info: unknown,
   ): TUser {
     if (err) {
       this.logger.error('Google OAuth callback error', err);

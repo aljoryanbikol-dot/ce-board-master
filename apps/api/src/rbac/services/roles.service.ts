@@ -93,7 +93,12 @@ export class RolesService {
           orderBy: { sortOrder: 'desc' },
           include: { _count: { select: { rolePermissions: true } } },
         });
-        return roles.map((r) => ({
+        return roles.map(
+          (r: {
+            id: string; name: string; slug: string; isSystem: boolean;
+            isActive: boolean; sortOrder: number;
+            _count: { rolePermissions: number };
+          }) => ({
           id:              r.id,
           name:            r.name,
           slug:            r.slug,

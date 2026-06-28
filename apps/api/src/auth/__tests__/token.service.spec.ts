@@ -19,6 +19,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
 import { TokenService } from '../services/token.service';
 import { hashToken, generateSecureToken, calculateExpiry } from '../utils/token.utils';
+import type { AuthenticatedUser } from '../auth.types';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -57,15 +58,11 @@ const buildService = () =>
     mockConfigService as any,
   );
 
-const activeUser = {
+const activeUser: AuthenticatedUser = {
   id:               'user-001',
   email:            'juan@example.com',
-  status:           'active',
-  isActive:         true,
-  isVerified:       true,
-  deletedAt:        null,
-  role:             { slug: 'free_user' },
-  subscriptionTier: 'free' as const,
+  role:             'free_user',
+  subscriptionTier: 'free',
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

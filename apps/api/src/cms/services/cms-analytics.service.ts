@@ -20,7 +20,7 @@ import {
 import type { CmsSearchDto } from '../dto/cms-search.dto';
 import type { AuthenticatedUser } from '../../auth/auth.types';
 
-interface StatusCounts {
+export interface StatusCounts {
   total: number; draft: number; inReview: number; approved: number; published: number; archived: number; flagged: number;
 }
 
