@@ -47,7 +47,16 @@ export type QuestionListParams = Record<string, string | number | boolean | unde
 export type QuestionStatus = 'draft' | 'published' | 'archived';
 
 export const questionsApi = {
-  list: (params?: QuestionListParams) => api.data<QuestionListResult>(api.get('/questions', { query: params })),
+  list: async (params?: QuestionListParams): Promise<QuestionListResult> => {
+    // The search endpoint returns the array under `data` and cursor pagination
+    // under `meta.pagination` — so read meta directly (api.data() drops meta).
+    const res = await api.get<QuestionSummary[]>('/questions', { query: params });
+    const p = res.meta?.pagination;
+    return {
+      data: res.data ?? [],
+      pagination: { cursor: p?.cursor ?? null, hasMore: p?.hasMore ?? false, total: p?.total ?? (res.data?.length ?? 0) },
+    };
+  },
   get: (id: string) => api.data<QuestionDetail>(api.get(`/questions/${id}`)),
   create: (body: Record<string, unknown>) => api.data<QuestionDetail>(api.post('/questions', body)),
   update: (id: string, body: Record<string, unknown>) => api.data<QuestionDetail>(api.patch(`/questions/${id}`, body)),
