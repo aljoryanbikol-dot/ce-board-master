@@ -50,6 +50,7 @@ import { AiModule } from './ai/ai.module';
 import { StudentModule } from './student/student.module';
 import { ExamsModule } from './exams/exams.module';
 import { AITutorModule } from './ai-tutor/ai-tutor.module';
+import { TaxonomyModule } from './taxonomy/taxonomy.module';
 
 // Global Guards
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -110,6 +111,7 @@ import type { AppEnvironment } from './config/configuration';
     StudentModule,       // Student Learning Platform (Sprint 3.1)
     ExamsModule,         // Mock Examination Engine (Sprint 3.2)
     AITutorModule,       // AI Tutor & Intelligent Learning Assistant (Sprint 3.3)
+    TaxonomyModule,      // Admin taxonomy CRUD — subjects/topics/subtopics (Phase 1 CMS)
 
     // Sprint 2.2+ modules registered here as implemented:
     // UsersModule,
