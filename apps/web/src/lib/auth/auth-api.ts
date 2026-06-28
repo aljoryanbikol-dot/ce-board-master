@@ -21,7 +21,20 @@ export const authApi = {
   },
 
   async register(input: RegisterInput): Promise<RegisterResponse> {
-    return api.data(api.post<RegisterResponse>('/auth/register', input, { skipAuth: true }));
+    // The form collects a single "Full name"; the API expects firstName +
+    // lastName. Split on whitespace: first token = firstName, the rest =
+    // lastName (falling back to firstName for single-word names so the
+    // required lastName is never empty).
+    const trimmed = (input.fullName ?? '').trim().replace(/\s+/g, ' ');
+    const [firstName, ...rest] = trimmed.split(' ');
+    const lastName = rest.length > 0 ? rest.join(' ') : firstName;
+    const payload = {
+      email: input.email,
+      password: input.password,
+      firstName: firstName ?? '',
+      lastName: lastName ?? '',
+    };
+    return api.data(api.post<RegisterResponse>('/auth/register', payload, { skipAuth: true }));
   },
 
   async verifyEmail(input: VerifyEmailInput): Promise<{ verified: boolean }> {

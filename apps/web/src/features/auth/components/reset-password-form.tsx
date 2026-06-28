@@ -29,7 +29,7 @@ export function ResetPasswordFormView() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-5" noValidate>
-      <FormField label="New password" htmlFor="password" error={errors.password?.message} hint="8+ chars with upper, lower, and a number" required>
+      <FormField label="New password" htmlFor="password" error={errors.password?.message} hint="8+ chars with uppercase, lowercase, a number & a special character" required>
         <Input id="password" type="password" autoComplete="new-password" {...register('password')} />
       </FormField>
       <FormField label="Confirm new password" htmlFor="confirmPassword" error={errors.confirmPassword?.message} required>

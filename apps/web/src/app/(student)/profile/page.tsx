@@ -40,7 +40,7 @@ export default function ProfilePage() {
           <CardContent>
             <form onSubmit={onSubmit} className="space-y-4">
               <FormField label="Current password" htmlFor="currentPassword"><Input id="currentPassword" type="password" autoComplete="current-password" {...register('currentPassword')} /></FormField>
-              <FormField label="New password" htmlFor="newPassword" hint="8+ chars with upper, lower, and a number"><Input id="newPassword" type="password" autoComplete="new-password" {...register('newPassword')} /></FormField>
+              <FormField label="New password" htmlFor="newPassword" hint="8+ chars with uppercase, lowercase, a number & a special character"><Input id="newPassword" type="password" autoComplete="new-password" {...register('newPassword')} /></FormField>
               <Button type="submit" disabled={isSubmitting}>{isSubmitting ? <Spinner className="text-primary-foreground" /> : 'Update password'}</Button>
             </form>
           </CardContent>

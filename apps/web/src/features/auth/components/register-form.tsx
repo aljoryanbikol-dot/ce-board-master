@@ -34,7 +34,7 @@ export function RegisterFormView() {
       <FormField label="Email" htmlFor="email" error={errors.email?.message} required>
         <Input id="email" type="email" autoComplete="email" placeholder="you@example.com" {...register('email')} />
       </FormField>
-      <FormField label="Password" htmlFor="password" error={errors.password?.message} hint="8+ chars with upper, lower, and a number" required>
+      <FormField label="Password" htmlFor="password" error={errors.password?.message} hint="8+ chars with uppercase, lowercase, a number & a special character" required>
         <Input id="password" type="password" autoComplete="new-password" {...register('password')} />
       </FormField>
       <FormField label="Confirm password" htmlFor="confirmPassword" error={errors.confirmPassword?.message} required>

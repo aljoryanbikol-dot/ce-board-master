@@ -10,7 +10,8 @@ const password = z
   .min(8, 'At least 8 characters')
   .regex(/[A-Z]/, 'Add an uppercase letter')
   .regex(/[a-z]/, 'Add a lowercase letter')
-  .regex(/[0-9]/, 'Add a number');
+  .regex(/[0-9]/, 'Add a number')
+  .regex(/[^A-Za-z0-9]/, 'Add a special character');
 
 export const loginSchema = z.object({
   email,
