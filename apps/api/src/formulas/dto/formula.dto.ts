@@ -37,6 +37,16 @@ export type CreateFormulaDto = z.infer<typeof CreateFormulaSchema>;
 export const UpdateFormulaSchema = CreateFormulaSchema.partial().omit({ formulaId: true });
 export type UpdateFormulaDto = z.infer<typeof UpdateFormulaSchema>;
 
+/**
+ * Idempotent sync of formulas authored in the Knowledge Library. Matches on the
+ * natural key (name/slug): existing formulas are updated, new ones created — so
+ * re-importing the same Library export never duplicates.
+ */
+export const BulkSyncFormulaSchema = z.object({
+  formulas: z.array(CreateFormulaSchema).min(1, 'At least one formula is required.').max(1000),
+});
+export type BulkSyncFormulaDto = z.infer<typeof BulkSyncFormulaSchema>;
+
 export const FormulaSearchSchema = z.object({
   subjectId: z.string().uuid().optional(),
   q:         z.string().trim().max(200).optional(),

@@ -19,7 +19,7 @@ import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { PERM, ROLE_SLUGS } from '../../rbac/rbac.constants';
 import {
-  CreateFormulaSchema, UpdateFormulaSchema, FormulaSearchSchema,
+  CreateFormulaSchema, UpdateFormulaSchema, FormulaSearchSchema, BulkSyncFormulaSchema,
   CreateFormulaDtoClass, UpdateFormulaDtoClass,
 } from '../dto/formula.dto';
 import type { AuthenticatedUser } from '../../auth/auth.types';
@@ -53,6 +53,14 @@ export class FormulaController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.formulas.create(body, user);
+  }
+
+  @Post('bulk-import')
+  @HttpCode(HttpStatus.OK)
+  @Permissions(PERM.FORMULAS_MANAGE)
+  @ApiOperation({ summary: 'Sync formulas from the Knowledge Library', description: 'Idempotent upsert by name/slug — re-importing the same export never duplicates.' })
+  async bulkImport(@Body(new ZodValidationPipe(BulkSyncFormulaSchema)) body: typeof BulkSyncFormulaSchema._type) {
+    return this.formulas.bulkSync(body.formulas);
   }
 
   @Get(':id')

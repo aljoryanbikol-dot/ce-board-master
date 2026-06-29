@@ -88,6 +88,50 @@ export class FormulaService {
     await this.invalidate();
   }
 
+  /**
+   * Idempotent sync from the Knowledge Library. Upserts by natural key
+   * (slug/name): existing formulas are updated (and reactivated), new ones
+   * created. Re-running the same import never duplicates.
+   */
+  async bulkSync(items: CreateFormulaDto[]) {
+    let created = 0;
+    let updated = 0;
+    const errors: { index: number; name: string; message: string }[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const dto = items[i]!;
+      try {
+        const slug = this.slugify(dto.name);
+        const existing = await this.prisma.formulaLibrary.findFirst({
+          where: { OR: [{ slug }, { name: dto.name }] },
+          select: { id: true },
+        });
+        const variablesEnvelope = this.withFormulaId(dto.variables, dto.formulaId);
+        const data = {
+          name: dto.name, slug, subjectId: dto.subjectId, topicId: dto.topicId ?? null,
+          expressionText: dto.expressionText, expressionLatex: dto.expressionLatex,
+          variables: variablesEnvelope as unknown as Prisma.InputJsonValue, unitsSystem: dto.unitsSystem,
+          imperialExpression: dto.imperialExpression ?? null, derivation: dto.derivation ?? null,
+          assumptions: dto.assumptions, limitations: dto.limitations ?? null,
+          typicalApplications: dto.typicalApplications, exampleProblem: dto.exampleProblem ?? null,
+          isActive: true,
+        };
+        if (existing) {
+          await this.prisma.formulaLibrary.update({ where: { id: existing.id }, data });
+          updated++;
+        } else {
+          await this.prisma.formulaLibrary.create({ data });
+          created++;
+        }
+      } catch (e) {
+        errors.push({ index: i, name: dto?.name ?? '', message: e instanceof Error ? e.message : 'failed' });
+      }
+    }
+    await this.invalidate();
+    this.logger.log({ message: 'Formula bulk sync', created, updated, failed: errors.length });
+    return { created, updated, failed: errors.length, errors };
+  }
+
   async search(dto: FormulaSearchDto) {
     const where: Prisma.FormulaLibraryWhereInput = {
       isActive: true,
