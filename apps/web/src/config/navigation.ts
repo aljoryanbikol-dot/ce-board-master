@@ -7,7 +7,7 @@ import {
   LayoutDashboard, BookOpen, Dumbbell, FileText, Bot, CalendarRange, TrendingUp,
   BarChart3, Bookmark, History, User, CreditCard, Receipt, Settings,
   Database, Library, Sigma, Target, Layers, ClipboardCheck, Sparkles,
-  Users, Shield, KeyRound, ScrollText, SlidersHorizontal, Gauge, Tag,
+  Users, Shield, KeyRound, ScrollText, SlidersHorizontal, Gauge, Tag, ArrowUpDown,
 } from 'lucide-react';
 
 export interface NavItem { label: string; href: string; icon: LucideIcon; }
@@ -60,6 +60,7 @@ export const adminNav: NavSection[] = [
       { label: 'Difficulty Levels', href: '/admin/difficulty-levels', icon: Gauge },
       { label: 'Tags', href: '/admin/tags', icon: Tag },
       { label: 'References', href: '/admin/references', icon: Library },
+      { label: 'Import / Export', href: '/admin/import-export', icon: ArrowUpDown },
     ],
   },
   {

@@ -68,3 +68,16 @@ export interface DifficultyLevel { id: string; name: string; code: number; color
 export const difficultyApi = {
   list: () => api.data<{ items: DifficultyLevel[] }>(api.get('/admin/difficulty-levels')),
 };
+
+export interface BulkExportResult { exportedAt: string; count: number; questions: QuestionDetail[]; }
+export interface BulkImportResult {
+  imported: number; failed: number;
+  errors: { index: number; code: string; message: string }[];
+  createdIds: string[];
+}
+export const questionBulkApi = {
+  export: (params?: { status?: string; subjectId?: string; limit?: number }) =>
+    api.data<BulkExportResult>(api.get('/questions/bulk/export', { query: params })),
+  import: (questions: unknown[], atomic: boolean) =>
+    api.data<BulkImportResult>(api.post('/questions/bulk/import', { questions, atomic })),
+};
