@@ -21,7 +21,7 @@ import {
 } from '../constants/questions.constants';
 import type { SearchQuestionsDto } from '../dto/search.dto';
 import type { BulkImportDto, BulkExportDto } from '../dto/bulk.dto';
-import type { CreateQuestionDto } from '../dto/question.dto';
+import type { CreateQuestionDto, UpdateQuestionDto } from '../dto/question.dto';
 import type { QuestionListResult, VersionEntry } from '../types/questions.types';
 import type { AuthenticatedUser } from '../../auth/auth.types';
 
@@ -110,39 +110,67 @@ export class QuestionSearchService {
   async bulkImport(dto: BulkImportDto, author: AuthenticatedUser) {
     const createdIds: string[] = [];
     const errors: { index: number; code: string; message: string }[] = [];
+    const upsert = dto.mode === 'upsert';
+    let updated = 0;
 
     if (dto.atomic) {
-      // All-or-nothing: validate every row by attempting creation in a transaction.
-      // We create sequentially through QuestionService to reuse its validation;
-      // any throw aborts the whole batch.
+      // All-or-nothing: any throw aborts and rolls back the rows created this batch.
       try {
         for (let i = 0; i < dto.questions.length; i++) {
-          const created = await this.questionService.create(dto.questions[i] as CreateQuestionDto, author);
-          createdIds.push(created.id);
+          const res = await this.importOne(dto.questions[i] as CreateQuestionDto, author, upsert);
+          if (res.updated) updated++; else createdIds.push(res.id);
         }
       } catch (err) {
-        // Roll back conceptually: delete the ones we created this batch.
         if (createdIds.length > 0) {
           await this.prisma.question.updateMany({ where: { id: { in: createdIds } }, data: { deletedAt: new Date() } });
         }
         const message = this.errMessage(err);
-        throw QuestionErrors.bulkImportInvalid(`row ${createdIds.length} failed (${message}); batch rolled back.`);
+        throw QuestionErrors.bulkImportInvalid(`row ${createdIds.length + updated} failed (${message}); newly-created rows rolled back.`);
       }
-      this.logger.log({ message: 'Bulk import (atomic) complete', imported: createdIds.length, authorId: author.id });
-      return { imported: createdIds.length, failed: 0, errors, createdIds };
+      this.logger.log({ message: 'Bulk import (atomic) complete', imported: createdIds.length, updated, mode: dto.mode, authorId: author.id });
+      return { imported: createdIds.length, updated, failed: 0, errors, createdIds };
     }
 
     // Non-atomic: import valid rows, collect per-row errors.
     for (let i = 0; i < dto.questions.length; i++) {
       try {
-        const created = await this.questionService.create(dto.questions[i] as CreateQuestionDto, author);
-        createdIds.push(created.id);
+        const res = await this.importOne(dto.questions[i] as CreateQuestionDto, author, upsert);
+        if (res.updated) updated++; else createdIds.push(res.id);
       } catch (err) {
         errors.push({ index: i, code: this.errCode(err), message: this.errMessage(err) });
       }
     }
-    this.logger.log({ message: 'Bulk import (partial) complete', imported: createdIds.length, failed: errors.length, authorId: author.id });
-    return { imported: createdIds.length, failed: errors.length, errors, createdIds };
+    this.logger.log({ message: 'Bulk import (partial) complete', imported: createdIds.length, updated, failed: errors.length, mode: dto.mode, authorId: author.id });
+    return { imported: createdIds.length, updated, failed: errors.length, errors, createdIds };
+  }
+
+  /**
+   * Import one row. In 'upsert' mode, an existing question (matched by
+   * questionCode) is updated in place (idempotent sync); otherwise a new draft
+   * is created. Subject/topic/code are stable identifiers and are not changed on
+   * update.
+   */
+  private async importOne(dto: CreateQuestionDto, author: AuthenticatedUser, upsert: boolean): Promise<{ id: string; updated: boolean }> {
+    if (upsert) {
+      const existing = await this.prisma.question.findFirst({
+        where: { questionCode: dto.questionCode, deletedAt: null },
+        select: { id: true },
+      });
+      if (existing) {
+        const update: UpdateQuestionDto = {
+          stemText: dto.stemText, choices: dto.choices, correctChoice: dto.correctChoice,
+          explanationText: dto.explanationText, bloomLevel: dto.bloomLevel, questionType: dto.questionType,
+          learningObjective: dto.learningObjective, prcSyllabusRef: dto.prcSyllabusRef, prcYearAppeared: dto.prcYearAppeared,
+          estSolvingTimeSec: dto.estSolvingTimeSec, difficultyLevelId: dto.difficultyLevelId, subtopicId: dto.subtopicId,
+          keywords: dto.keywords, tags: dto.tags, intelligence: dto.intelligence,
+          changeSummary: 'Synced from Knowledge Library',
+        };
+        await this.questionService.update(existing.id, update, author);
+        return { id: existing.id, updated: true };
+      }
+    }
+    const created = await this.questionService.create(dto, author);
+    return { id: created.id, updated: false };
   }
 
   // ── Bulk export ────────────────────────────────────────────────────────────────

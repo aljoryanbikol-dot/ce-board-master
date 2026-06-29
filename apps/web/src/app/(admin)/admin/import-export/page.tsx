@@ -42,6 +42,7 @@ export default function ImportExportPage() {
   // Import state
   const [raw, setRaw] = useState('');
   const [atomic, setAtomic] = useState(true);
+  const [mode, setMode] = useState<'create' | 'upsert'>('upsert');
   const [result, setResult] = useState<BulkImportResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -51,12 +52,12 @@ export default function ImportExportPage() {
       try { parsed = JSON.parse(raw); } catch { throw new Error('Invalid JSON — check the file/paste.'); }
       const questions = Array.isArray(parsed) ? parsed : (parsed as { questions?: unknown[] })?.questions;
       if (!Array.isArray(questions) || questions.length === 0) throw new Error('Expected a non-empty array, or an object with a "questions" array.');
-      return questionBulkApi.import(questions, atomic);
+      return questionBulkApi.import(questions, atomic, mode);
     },
     onSuccess: (r) => {
       setResult(r);
-      if (r.failed === 0) toast.success('Imported', `${r.imported} question(s) created.`);
-      else toast.success('Partially imported', `${r.imported} created, ${r.failed} failed.`);
+      const parts = [`${r.imported} created`, r.updated ? `${r.updated} updated` : '', r.failed ? `${r.failed} failed` : ''].filter(Boolean);
+      toast.success(r.failed ? 'Partially imported' : 'Imported', parts.join(', ') + '.');
     },
     onError: (e) => { setResult(null); toast.fromError(e, 'Import failed'); },
   });
@@ -117,18 +118,25 @@ export default function ImportExportPage() {
               placeholder={'{ "questions": [ { "questionCode": "STRUC-001", "subjectId": "…", "topicId": "…", "subtopicId": "…", "difficultyLevelId": "…", "stemText": "…", "choices": [ {"letter":"A","text":"…"}, … ], "correctChoice": "A", "explanationText": "…" } ] }'}
               value={raw} onChange={(e) => setRaw(e.target.value)}
             />
+            <div>
+              <label className="mb-1 block text-sm font-medium">Mode</label>
+              <select className="w-full rounded-lg border bg-background p-2 text-sm" value={mode} onChange={(e) => setMode(e.target.value as 'create' | 'upsert')}>
+                <option value="upsert">Sync (update existing by code, create new) — recommended</option>
+                <option value="create">Create only (error on existing codes)</option>
+              </select>
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={atomic} onChange={(e) => setAtomic(e.target.checked)} />
               Atomic (reject the whole batch if any row is invalid)
             </label>
             <Button onClick={() => importMut.mutate()} disabled={importMut.isPending || !raw.trim()} className="w-full">
-              {importMut.isPending ? <Spinner className="text-primary-foreground" /> : <><Upload className="h-4 w-4" /> Import</>}
+              {importMut.isPending ? <Spinner className="text-primary-foreground" /> : <><Upload className="h-4 w-4" /> {mode === 'upsert' ? 'Sync' : 'Import'}</>}
             </Button>
 
             {result ? (
               <div className="rounded-lg border bg-muted/30 p-3 text-sm">
                 <div className="flex items-center gap-4">
-                  <span className="flex items-center gap-1 text-success"><CheckCircle2 className="h-4 w-4" /> {result.imported} imported</span>
+                  <span className="flex items-center gap-1 text-success"><CheckCircle2 className="h-4 w-4" /> {result.imported} created{result.updated ? ` · ${result.updated} updated` : ''}</span>
                   {result.failed > 0 ? <span className="flex items-center gap-1 text-destructive"><AlertTriangle className="h-4 w-4" /> {result.failed} failed</span> : null}
                 </div>
                 {result.errors?.length ? (

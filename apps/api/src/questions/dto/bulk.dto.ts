@@ -16,6 +16,9 @@ export const BulkImportSchema = z.object({
   /** If true, the whole batch is rejected when any row is invalid (default).
    *  If false, valid rows are imported and invalid rows reported. */
   atomic: z.boolean().default(true),
+  /** 'create' (default) errors on existing questionCodes; 'upsert' updates them
+   *  in place — idempotent sync from the Knowledge Library (no duplicates). */
+  mode: z.enum(['create', 'upsert']).default('create'),
 });
 export type BulkImportDto = z.infer<typeof BulkImportSchema>;
 
