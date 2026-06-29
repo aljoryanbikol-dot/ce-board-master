@@ -77,6 +77,46 @@ export class LearningObjectiveService {
     return this.toView(created);
   }
 
+  /**
+   * Idempotent sync from the Knowledge Library. Upserts by publicId (the stable
+   * natural key, derived from subject/topic/subtopic/sequence) and publishes —
+   * the Library is the authoritative source, so synced objectives go live for the
+   * AI Tutor's grounding. Re-running the same export never duplicates.
+   */
+  async bulkSync(items: CreateLearningObjectiveDto[], user: AuthenticatedUser) {
+    let created = 0;
+    let updated = 0;
+    const errors: { index: number; publicId: string; message: string }[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const dto = items[i]!;
+      let publicId = '';
+      try {
+        publicId = this.publicId.buildLearningObjectiveId(dto.subjectCode, dto.topicCode, dto.subtopicCode, dto.sequenceNumber);
+        const data = {
+          publicId, subjectCode: dto.subjectCode,
+          topicCode: this.pad(dto.topicCode), subtopicCode: this.pad(dto.subtopicCode),
+          sequenceNumber: dto.sequenceNumber, statement: dto.statement, bloomLevel: dto.bloomLevel,
+          measurable: dto.measurable, keywords: dto.keywords, subjectId: dto.subjectId ?? null,
+          sourceDocumentId: dto.sourceDocumentId ?? null, status: 'published' as const, deletedAt: null,
+        };
+        const existing = await this.prisma.learningObjective.findUnique({ where: { publicId }, select: { id: true } });
+        if (existing) {
+          await this.prisma.learningObjective.update({ where: { publicId }, data });
+          updated++;
+        } else {
+          await this.prisma.learningObjective.create({ data: { ...data, createdBy: user.id, currentVersion: 1, semver: '1.0.0' } });
+          created++;
+        }
+      } catch (e) {
+        errors.push({ index: i, publicId, message: e instanceof Error ? e.message : 'failed' });
+      }
+    }
+    await this.invalidate();
+    this.logger.log({ message: 'Learning objective bulk sync', created, updated, failed: errors.length });
+    return { created, updated, failed: errors.length, errors };
+  }
+
   async findById(id: string) {
     const lo = await this.prisma.learningObjective.findFirst({ where: { id, deletedAt: null } });
     if (!lo) throw KnowledgeErrors.entityNotFound('Learning Objective', id);

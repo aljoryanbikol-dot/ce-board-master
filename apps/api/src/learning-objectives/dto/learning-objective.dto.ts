@@ -21,6 +21,12 @@ export const CreateLearningObjectiveSchema = z.object({
 });
 export type CreateLearningObjectiveDto = z.infer<typeof CreateLearningObjectiveSchema>;
 
+/** Idempotent sync of learning objectives authored in the Knowledge Library. */
+export const BulkSyncLoSchema = z.object({
+  objectives: z.array(CreateLearningObjectiveSchema).min(1, 'At least one objective is required.').max(2000),
+});
+export type BulkSyncLoDto = z.infer<typeof BulkSyncLoSchema>;
+
 export const UpdateLearningObjectiveSchema = z.object({
   statement:  z.string().trim().min(10).max(2000).optional(),
   bloomLevel: z.enum(BLOOM).optional(),

@@ -19,7 +19,7 @@ import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { PERM, ROLE_SLUGS } from '../../rbac/rbac.constants';
 import {
-  CreateLearningObjectiveSchema, UpdateLearningObjectiveSchema, LoSearchSchema,
+  CreateLearningObjectiveSchema, UpdateLearningObjectiveSchema, LoSearchSchema, BulkSyncLoSchema,
   CreateLearningObjectiveDtoClass, UpdateLearningObjectiveDtoClass,
 } from '../dto/learning-objective.dto';
 import type { AuthenticatedUser } from '../../auth/auth.types';
@@ -53,6 +53,17 @@ export class LearningObjectiveController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.los.create(body, user);
+  }
+
+  @Post('bulk-import')
+  @HttpCode(HttpStatus.OK)
+  @Permissions(PERM.KNOWLEDGE_PUBLISH)
+  @ApiOperation({ summary: 'Sync learning objectives from the Knowledge Library', description: 'Idempotent upsert by publicId; synced objectives are published for tutor grounding.' })
+  async bulkImport(
+    @Body(new ZodValidationPipe(BulkSyncLoSchema)) body: typeof BulkSyncLoSchema._type,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.los.bulkSync(body.objectives, user);
   }
 
   @Get('by-public-id/:publicId')
