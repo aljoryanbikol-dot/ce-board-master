@@ -2,7 +2,7 @@
  * @file mock-exam.controller.ts
  * @module Exams/Controllers
  */
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { MockExamService } from '../services/mock-exam.service';
 import { ExamSessionService } from '../services/exam-session.service';
@@ -12,7 +12,7 @@ import { Permissions } from '../../rbac/decorators/permissions.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { PERM } from '../../rbac/rbac.constants';
-import { CreateTemplateSchema, StartExamSchema, CreateTemplateDtoClass, StartExamDtoClass } from '../dto/exam.dto';
+import { CreateTemplateSchema, UpdateTemplateSchema, StartExamSchema, CreateTemplateDtoClass, StartExamDtoClass } from '../dto/exam.dto';
 import type { AuthenticatedUser } from '../../auth/auth.types';
 
 @ApiTags('Exams — Mock Exam & Templates')
@@ -46,6 +46,22 @@ export class MockExamController {
   @ApiParam({ name: 'id' })
   async getTemplate(@Param('id', ParseUUIDPipe) id: string) {
     return this.mockExam.getTemplate(id);
+  }
+
+  @Patch('templates/:id')
+  @Permissions(PERM.EXAM_MANAGE)
+  @ApiOperation({ summary: 'Update an exam template' })
+  @ApiParam({ name: 'id' })
+  async updateTemplate(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(UpdateTemplateSchema)) body: typeof UpdateTemplateSchema._type) {
+    return this.mockExam.updateTemplate(id, body);
+  }
+
+  @Delete('templates/:id')
+  @Permissions(PERM.EXAM_MANAGE)
+  @ApiOperation({ summary: 'Deactivate an exam template' })
+  @ApiParam({ name: 'id' })
+  async removeTemplate(@Param('id', ParseUUIDPipe) id: string) {
+    return this.mockExam.removeTemplate(id);
   }
 
   @Post()

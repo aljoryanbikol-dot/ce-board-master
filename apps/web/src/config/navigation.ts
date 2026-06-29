@@ -77,6 +77,12 @@ export const adminNav: NavSection[] = [
     ],
   },
   {
+    label: 'Assessments',
+    items: [
+      { label: 'Mock Exam Templates', href: '/admin/exam-templates', icon: CalendarRange },
+    ],
+  },
+  {
     label: 'Access',
     items: [
       { label: 'Users', href: '/admin/users', icon: Users },

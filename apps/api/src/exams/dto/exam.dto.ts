@@ -7,7 +7,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EXAM_LIMITS } from '../constants/exam.constants';
 
 // ── Templates ───────────────────────────────────────────────────────────────────
-const CompositionEntrySchema = z.object({
+export const CompositionEntrySchema = z.object({
   subjectId: z.string().uuid(),
   count: z.coerce.number().int().min(1).max(EXAM_LIMITS.MAX_QUESTIONS),
   difficultyLevelId: z.string().uuid().optional(),
@@ -28,6 +28,22 @@ export const CreateTemplateSchema = z.object({
   message: `Composition must total at least ${EXAM_LIMITS.MIN_QUESTIONS} questions.`,
 });
 export type CreateTemplateDto = z.infer<typeof CreateTemplateSchema>;
+
+export const UpdateTemplateSchema = z.object({
+  code: z.string().trim().min(2).max(50).toUpperCase().optional(),
+  name: z.string().trim().min(2).max(160).optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+  kind: z.enum(['full_board', 'subject', 'custom', 'adaptive', 'ai_generated']).optional(),
+  durationMinutes: z.coerce.number().int().min(EXAM_LIMITS.MIN_DURATION_MIN).max(EXAM_LIMITS.MAX_DURATION_MIN).optional(),
+  passingScore: z.coerce.number().min(EXAM_LIMITS.MIN_PASSING_SCORE).max(EXAM_LIMITS.MAX_PASSING_SCORE).optional(),
+  randomizeQuestions: z.boolean().optional(),
+  randomizeChoices: z.boolean().optional(),
+  composition: z.array(CompositionEntrySchema).min(1).optional(),
+}).refine(
+  (d) => Object.values(d).some((v) => v !== undefined),
+  { message: 'At least one field must be provided.' },
+);
+export type UpdateTemplateDto = z.infer<typeof UpdateTemplateSchema>;
 
 // ── Start an exam ─────────────────────────────────────────────────────────────
 export const StartExamSchema = z.object({

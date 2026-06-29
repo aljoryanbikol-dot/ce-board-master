@@ -12,12 +12,12 @@
  * Randomization is deterministic-free (Math.random) per build; the choice order
  * is snapshotted so grading maps presented→original letters.
  */
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { ExamErrors } from '../errors/exam.errors';
 import type { CompositionEntry, BuiltExamQuestion } from '../types/exam.types';
-import type { CreateTemplateDto } from '../dto/exam.dto';
+import type { CreateTemplateDto, UpdateTemplateDto } from '../dto/exam.dto';
 
 interface BuildRequest {
   kind: string;
@@ -60,6 +60,38 @@ export class MockExamService {
     const t = await this.prisma.examTemplate.findUnique({ where: { id } });
     if (!t) throw ExamErrors.templateNotFound(id);
     return t;
+  }
+
+  async updateTemplate(id: string, dto: UpdateTemplateDto) {
+    await this.getTemplate(id);
+    const data: Prisma.ExamTemplateUpdateInput = {};
+    if (dto.code !== undefined) data.code = dto.code;
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.description !== undefined) data.description = dto.description ?? null;
+    if (dto.kind !== undefined) data.kind = dto.kind as never;
+    if (dto.durationMinutes !== undefined) data.durationMinutes = dto.durationMinutes;
+    if (dto.passingScore !== undefined) data.passingScore = dto.passingScore;
+    if (dto.randomizeQuestions !== undefined) data.randomizeQuestions = dto.randomizeQuestions;
+    if (dto.randomizeChoices !== undefined) data.randomizeChoices = dto.randomizeChoices;
+    if (dto.composition !== undefined) {
+      data.composition = dto.composition as unknown as Prisma.InputJsonValue;
+      data.totalQuestions = dto.composition.reduce((s, e) => s + e.count, 0);
+    }
+    try {
+      return await this.prisma.examTemplate.update({ where: { id }, data });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException('An exam template with that code already exists.');
+      }
+      throw e;
+    }
+  }
+
+  /** Deactivate a template (soft delete — listTemplates only returns isActive). */
+  async removeTemplate(id: string) {
+    await this.getTemplate(id);
+    await this.prisma.examTemplate.update({ where: { id }, data: { isActive: false } });
+    return { id, deleted: true };
   }
 
   // ── Composition resolution ──────────────────────────────────────────────────
