@@ -32,15 +32,19 @@ export interface SyncConfig<T = unknown> {
   softDeleteField?: string;
   /** Boolean active column set true on upsert (e.g. 'isActive'), if any. */
   activeField?: string;
+  /** Optional cross-reference check; returns warning messages for a row (non-fatal). */
+  checkRelationships?: (row: T, prisma: PrismaService) => Promise<string[]>;
 }
 
 export interface SyncReport {
   kind: string;
+  dryRun: boolean;
   total: number;
   created: number;
   updated: number;
   unchanged: number;
   failed: number;
   errors: { index: number; publicId: string; message: string }[];
+  warnings: { index: number; publicId: string; message: string }[];
   durationMs: number;
 }

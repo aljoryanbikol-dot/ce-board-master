@@ -6,6 +6,7 @@ import { Body, Controller, Get, HttpCode, HttpStatus, NotFoundException, Param, 
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { ContentSyncService } from './content-sync.service';
+import { QuestionSyncService } from './question-sync.service';
 import { SYNC_CONFIGS } from './content-sync.registry';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../rbac/guards/permission.guard';
@@ -31,13 +32,44 @@ const ListQuerySchema = z.object({
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('admin/sync')
 export class ContentSyncController {
-  constructor(private readonly engine: ContentSyncService) {}
+  constructor(
+    private readonly engine: ContentSyncService,
+    private readonly questionSync: QuestionSyncService,
+  ) {}
 
   @Get('kinds')
   @Permissions(PERM.KNOWLEDGE_READ)
   @ApiOperation({ summary: 'List syncable content types' })
   kinds() {
-    return Object.values(SYNC_CONFIGS).map((c) => ({ kind: c.kind, label: c.label, entityType: c.entityType }));
+    return [
+      { kind: 'questions', label: 'Questions', entityType: 'question' },
+      ...Object.values(SYNC_CONFIGS).map((c) => ({ kind: c.kind, label: c.label, entityType: c.entityType })),
+    ];
+  }
+
+  // ── Questions (adapter: resolves codes → IDs, links formulas, publishes) ──────
+  @Post('questions/preview')
+  @HttpCode(HttpStatus.OK)
+  @Permissions(PERM.KNOWLEDGE_READ)
+  @ApiOperation({ summary: 'Dry-run preview question import' })
+  previewQuestions(@Body(new ZodValidationPipe(SyncBodySchema)) body: typeof SyncBodySchema._type, @CurrentUser() user: AuthenticatedUser) {
+    return this.questionSync.sync(body.items, { atomic: body.atomic, dryRun: true, user });
+  }
+
+  @Post('questions')
+  @HttpCode(HttpStatus.OK)
+  @Permissions(PERM.QUESTIONS_CREATE)
+  @ApiOperation({ summary: 'Sync questions from the Knowledge Library', description: 'Resolves subject/topic/subtopic/difficulty codes, links formulas by slug, warns on missing diagram/LO refs, upserts by questionCode and publishes.' })
+  syncQuestions(@Body(new ZodValidationPipe(SyncBodySchema)) body: typeof SyncBodySchema._type, @CurrentUser() user: AuthenticatedUser) {
+    return this.questionSync.sync(body.items, { atomic: body.atomic, dryRun: false, user });
+  }
+
+  @Get('questions/items')
+  @Permissions(PERM.KNOWLEDGE_READ)
+  @ApiOperation({ summary: 'Count synced questions' })
+  async questionItems() {
+    const total = await this.questionSync.count();
+    return { items: [], total, page: 1, limit: 1 };
   }
 
   @Get(':kind/items')
@@ -46,6 +78,19 @@ export class ContentSyncController {
   @ApiParam({ name: 'kind' })
   list(@Param('kind') kind: string, @Query(new ZodValidationPipe(ListQuerySchema)) q: typeof ListQuerySchema._type) {
     return this.engine.list(this.config(kind), q);
+  }
+
+  @Post(':kind/preview')
+  @HttpCode(HttpStatus.OK)
+  @Permissions(PERM.KNOWLEDGE_READ)
+  @ApiOperation({ summary: 'Dry-run preview (no writes)', description: 'Validates + classifies rows as new / updated / unchanged, with validation errors and relationship warnings. Nothing is persisted.' })
+  @ApiParam({ name: 'kind' })
+  preview(
+    @Param('kind') kind: string,
+    @Body(new ZodValidationPipe(SyncBodySchema)) body: typeof SyncBodySchema._type,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.engine.sync(this.config(kind), body.items, { atomic: body.atomic, actorId: user.id, dryRun: true });
   }
 
   @Post(':kind')

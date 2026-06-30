@@ -8,12 +8,14 @@ export interface SyncKind { kind: string; label: string; entityType: string; }
 
 export interface SyncReport {
   kind: string;
+  dryRun?: boolean;
   total: number;
   created: number;
   updated: number;
   unchanged: number;
   failed: number;
   errors: { index: number; publicId: string; message: string }[];
+  warnings?: { index: number; publicId: string; message: string }[];
   durationMs: number;
 }
 
@@ -25,6 +27,8 @@ export interface SyncedItem {
 
 export const knowledgeSyncApi = {
   kinds: () => api.data<SyncKind[]>(api.get('/admin/sync/kinds')),
+  preview: (kind: string, items: unknown[], atomic: boolean) =>
+    api.data<SyncReport>(api.post(`/admin/sync/${kind}/preview`, { items, atomic })),
   sync: (kind: string, items: unknown[], atomic: boolean) =>
     api.data<SyncReport>(api.post(`/admin/sync/${kind}`, { items, atomic })),
   listItems: (kind: string, params?: Record<string, string | number | undefined>) =>

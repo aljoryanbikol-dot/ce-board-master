@@ -7,7 +7,7 @@
  */
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Upload, FileJson, CheckCircle2, AlertTriangle, RefreshCw, Database } from 'lucide-react';
+import { Upload, FileJson, CheckCircle2, AlertTriangle, RefreshCw, Database, Eye } from 'lucide-react';
 import { knowledgeSyncApi, type SyncReport } from '@/features/admin/api/knowledge-sync-api';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -33,21 +33,25 @@ export default function KnowledgeSyncPage() {
     enabled: !!activeKind,
   });
 
-  const syncMut = useMutation({
-    mutationFn: () => {
-      let parsed: unknown;
-      try { parsed = JSON.parse(raw); } catch { throw new Error('Invalid JSON — check the file/paste.'); }
-      const items = Array.isArray(parsed) ? parsed : (parsed as { items?: unknown[] })?.items;
-      if (!Array.isArray(items) || items.length === 0) throw new Error('Expected a non-empty array, or an object with an "items" array.');
-      return knowledgeSyncApi.sync(activeKind, items, atomic);
-    },
+  const parseItems = (): unknown[] => {
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { throw new Error('Invalid JSON — check the file/paste.'); }
+    const items = Array.isArray(parsed) ? parsed
+      : (parsed as { items?: unknown[]; questions?: unknown[]; objectives?: unknown[]; formulas?: unknown[] })?.items
+        ?? (parsed as { questions?: unknown[] })?.questions ?? (parsed as { objectives?: unknown[] })?.objectives ?? (parsed as { formulas?: unknown[] })?.formulas;
+    if (!Array.isArray(items) || items.length === 0) throw new Error('Expected a non-empty array (or { items | questions: [...] }).');
+    return items;
+  };
+
+  const runMut = useMutation({
+    mutationFn: (dry: boolean) => (dry ? knowledgeSyncApi.preview(activeKind, parseItems(), atomic) : knowledgeSyncApi.sync(activeKind, parseItems(), atomic)),
     onSuccess: (r) => {
       setReport(r);
-      const parts = [`${r.created} created`, `${r.updated} updated`, `${r.unchanged} unchanged`, r.failed ? `${r.failed} failed` : ''].filter(Boolean);
-      toast.success(r.failed ? 'Synced with errors' : 'Synced', parts.join(' · ') + '.');
-      qc.invalidateQueries({ queryKey: ['admin', 'sync', 'count', activeKind] });
+      const parts = [`${r.created} new`, `${r.updated} updated`, `${r.unchanged} unchanged`, r.failed ? `${r.failed} failed` : ''].filter(Boolean);
+      toast.success(r.dryRun ? 'Preview' : (r.failed ? 'Synced with errors' : 'Synced'), parts.join(' · ') + '.');
+      if (!r.dryRun) qc.invalidateQueries({ queryKey: ['admin', 'sync', 'count', activeKind] });
     },
-    onError: (e) => { setReport(null); toast.fromError(e, 'Sync failed'); },
+    onError: (e) => { setReport(null); toast.fromError(e, 'Failed'); },
   });
 
   const onFile = (file?: File) => { if (!file) return; const rd = new FileReader(); rd.onload = () => setRaw(String(rd.result ?? '')); rd.readAsText(file); };
@@ -87,34 +91,51 @@ export default function KnowledgeSyncPage() {
             <input type="checkbox" checked={atomic} onChange={(e) => setAtomic(e.target.checked)} />
             Atomic (roll back the entire batch if any row fails)
           </label>
-          <Button className="mt-3 w-full" disabled={syncMut.isPending || !raw.trim() || !activeKind} onClick={() => syncMut.mutate()}>
-            {syncMut.isPending ? <Spinner className="text-primary-foreground" /> : <><RefreshCw className="h-4 w-4" /> Sync {kinds.find((k) => k.kind === activeKind)?.label ?? ''}</>}
-          </Button>
+          <div className="mt-3 flex gap-2">
+            <Button variant="outline" className="flex-1" disabled={runMut.isPending || !raw.trim() || !activeKind} onClick={() => runMut.mutate(true)}>
+              {runMut.isPending ? <Spinner /> : <><Eye className="h-4 w-4" /> Preview</>}
+            </Button>
+            <Button className="flex-1" disabled={runMut.isPending || !raw.trim() || !activeKind} onClick={() => runMut.mutate(false)}>
+              {runMut.isPending ? <Spinner className="text-primary-foreground" /> : <><RefreshCw className="h-4 w-4" /> Sync</>}
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">Preview is a dry run — nothing is written.</p>
         </section>
 
         <section className="rounded-xl border p-5">
-          <h2 className="mb-3 flex items-center gap-2 font-semibold"><Upload className="h-4 w-4" /> Sync report</h2>
+          <h2 className="mb-3 flex items-center gap-2 font-semibold">
+            <Upload className="h-4 w-4" /> {report?.dryRun ? 'Import preview' : 'Sync report'}
+            {report?.dryRun ? <span className="rounded bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600">dry run</span> : null}
+          </h2>
           {!report ? (
-            <p className="text-sm text-muted-foreground">Run a sync to see the report. Re-running the same export is safe — unchanged rows are skipped.</p>
+            <p className="text-sm text-muted-foreground">Run a preview or sync to see the report. Re-running the same export is safe — unchanged rows are skipped.</p>
           ) : (
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-2">
-                <Stat label="Created" value={report.created} tone="success" />
+                <Stat label={report.dryRun ? 'New' : 'Created'} value={report.created} tone="success" />
                 <Stat label="Updated" value={report.updated} tone="success" />
                 <Stat label="Unchanged" value={report.unchanged} tone="muted" />
                 <Stat label="Failed" value={report.failed} tone={report.failed ? 'destructive' : 'muted'} />
               </div>
-              <p className="text-xs text-muted-foreground">{report.total} rows in {report.durationMs} ms</p>
+              <p className="text-xs text-muted-foreground">{report.total} rows in {report.durationMs} ms{report.dryRun ? ' · nothing written' : ''}</p>
               {report.failed === 0 ? (
-                <p className="flex items-center gap-1 text-success"><CheckCircle2 className="h-4 w-4" /> All rows synced.</p>
+                <p className="flex items-center gap-1 text-success"><CheckCircle2 className="h-4 w-4" /> {report.dryRun ? 'All rows valid — safe to sync.' : 'All rows synced.'}</p>
               ) : (
                 <div>
-                  <p className="mb-1 flex items-center gap-1 text-destructive"><AlertTriangle className="h-4 w-4" /> {report.failed} failed{atomic ? ' (batch rolled back)' : ''}</p>
-                  <ul className="max-h-48 space-y-1 overflow-y-auto text-xs text-muted-foreground">
+                  <p className="mb-1 flex items-center gap-1 text-destructive"><AlertTriangle className="h-4 w-4" /> {report.failed} validation error{report.failed > 1 ? 's' : ''}{atomic && !report.dryRun ? ' (batch rolled back)' : ''}</p>
+                  <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-muted-foreground">
                     {report.errors.map((er, i) => <li key={i}><span className="font-mono">{er.publicId || `#${er.index}`}</span>: {er.message}</li>)}
                   </ul>
                 </div>
               )}
+              {report.warnings && report.warnings.length > 0 ? (
+                <div>
+                  <p className="mb-1 flex items-center gap-1 text-amber-600"><AlertTriangle className="h-4 w-4" /> {report.warnings.length} relationship warning{report.warnings.length > 1 ? 's' : ''}</p>
+                  <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-muted-foreground">
+                    {report.warnings.map((w, i) => <li key={i}><span className="font-mono">{w.publicId || `#${w.index}`}</span>: {w.message}</li>)}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           )}
         </section>

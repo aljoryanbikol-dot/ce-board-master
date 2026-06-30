@@ -39,6 +39,15 @@ const conceptCfg: SyncConfig<z.infer<typeof ConceptInput>> = {
   naturalKey: (r) => r.publicId, searchFields: ['title', 'body', 'publicId'],
   getDelegate: (c: Client) => (c as PrismaService).concept,
   toData: (r) => ({ subjectCode: nn(r.subjectCode), topicCode: nn(r.topicCode), title: r.title, summary: nn(r.summary), body: r.body, bloomLevel: r.bloomLevel, keywords: r.keywords, relatedFormulaSlugs: r.relatedFormulaSlugs, status: r.status }),
+  checkRelationships: async (r, prisma) => {
+    const warnings: string[] = [];
+    if (r.relatedFormulaSlugs.length) {
+      const found = await prisma.formulaLibrary.findMany({ where: { slug: { in: r.relatedFormulaSlugs } }, select: { slug: true } });
+      const set = new Set(found.map((f) => f.slug));
+      for (const s of r.relatedFormulaSlugs) if (!set.has(s)) warnings.push(`formula slug '${s}' not found`);
+    }
+    return warnings;
+  },
 };
 
 // ── Engineering Note ──────────────────────────────────────────────────────────

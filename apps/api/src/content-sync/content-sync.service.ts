@@ -50,11 +50,13 @@ export class ContentSyncService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async sync(cfg: SyncConfig, rawItems: unknown[], opts: { atomic: boolean; actorId: string }): Promise<SyncReport> {
+  async sync(cfg: SyncConfig, rawItems: unknown[], opts: { atomic: boolean; actorId: string; dryRun?: boolean }): Promise<SyncReport> {
     const started = Date.now();
+    const dryRun = !!opts.dryRun;
     const errors: SyncReport['errors'] = [];
+    const warnings: SyncReport['warnings'] = [];
 
-    // 1. Validate + map + hash every row up front.
+    // 1. Validate + map + hash + relationship-check every row up front.
     const prepared: { index: number; publicId: string; hash: string; data: Record<string, unknown> }[] = [];
     for (let i = 0; i < rawItems.length; i++) {
       const parsed = cfg.schema.safeParse(rawItems[i]);
@@ -63,13 +65,19 @@ export class ContentSyncService {
         errors.push({ index: i, publicId: pid, message: parsed.error.issues.map((x) => `${x.path.join('.')}: ${x.message}`).join('; ') });
         continue;
       }
+      const publicId = cfg.naturalKey(parsed.data);
+      if (cfg.checkRelationships) {
+        for (const msg of await cfg.checkRelationships(parsed.data, this.prisma)) warnings.push({ index: i, publicId, message: msg });
+      }
       const data = cfg.toData(parsed.data);
-      prepared.push({ index: i, publicId: cfg.naturalKey(parsed.data), hash: createHash('sha256').update(stableStringify(data)).digest('hex'), data });
+      prepared.push({ index: i, publicId, hash: createHash('sha256').update(stableStringify(data)).digest('hex'), data });
     }
+
+    const reportBase = { kind: cfg.kind, dryRun, total: rawItems.length, errors, warnings };
 
     // Atomic: a single invalid row rejects the whole batch (nothing written).
     if (opts.atomic && errors.length > 0) {
-      return { kind: cfg.kind, total: rawItems.length, created: 0, updated: 0, unchanged: 0, failed: errors.length, errors, durationMs: Date.now() - started };
+      return { ...reportBase, created: 0, updated: 0, unchanged: 0, failed: errors.length, durationMs: Date.now() - started };
     }
 
     const keyField = cfg.keyField ?? 'publicId';
@@ -116,12 +124,26 @@ export class ContentSyncService {
       return { created, updated, unchanged };
     };
 
+    // Dry-run: classify each row read-only (no writes), so the Import Preview can
+    // show new / updated / unchanged without touching the database.
+    if (dryRun) {
+      const delegate = cfg.getDelegate(this.prisma) as unknown as SyncDelegate;
+      let created = 0, updated = 0, unchanged = 0;
+      for (const p of prepared) {
+        const existing = await delegate.findUnique({ where: { [keyField]: p.publicId } as { publicId: string }, select: { id: true, contentHash: true, ...(cfg.softDeleteField ? { [cfg.softDeleteField]: true } : {}) } });
+        if (!existing) created++;
+        else if (existing.contentHash === p.hash && !(cfg.softDeleteField && existing[cfg.softDeleteField])) unchanged++;
+        else updated++;
+      }
+      return { ...reportBase, created, updated, unchanged, failed: errors.length, durationMs: Date.now() - started };
+    }
+
     const counts = opts.atomic
       ? await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => applyAll(tx))
       : await applyAll(this.prisma);
 
-    const report: SyncReport = { kind: cfg.kind, total: rawItems.length, ...counts, failed: errors.length, errors, durationMs: Date.now() - started };
-    this.logger.log({ message: 'Content sync complete', ...report, errors: errors.length });
+    const report: SyncReport = { ...reportBase, ...counts, failed: errors.length, durationMs: Date.now() - started };
+    this.logger.log({ message: 'Content sync complete', kind: report.kind, created: report.created, updated: report.updated, unchanged: report.unchanged, failed: report.failed });
     return report;
   }
 
