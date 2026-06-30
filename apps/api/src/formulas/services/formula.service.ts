@@ -19,7 +19,7 @@ import { CacheService } from '../../cache/cache.service';
 import { ValidationEngineService } from '../../knowledge/services/validation-engine.service';
 import { KnowledgeErrors } from '../../knowledge/knowledge.errors';
 import { KNOWLEDGE_CACHE_PREFIX } from '../../knowledge/constants/knowledge.constants';
-import type { CreateFormulaDto, UpdateFormulaDto, FormulaSearchDto } from '../dto/formula.dto';
+import type { CreateFormulaDto, UpdateFormulaDto, FormulaSearchDto, FormulaSyncItem } from '../dto/formula.dto';
 import type { AuthenticatedUser } from '../../auth/auth.types';
 
 @Injectable()
@@ -93,7 +93,7 @@ export class FormulaService {
    * (slug/name): existing formulas are updated (and reactivated), new ones
    * created. Re-running the same import never duplicates.
    */
-  async bulkSync(items: CreateFormulaDto[]) {
+  async bulkSync(items: FormulaSyncItem[]) {
     let created = 0;
     let updated = 0;
     const errors: { index: number; name: string; message: string }[] = [];
@@ -101,6 +101,14 @@ export class FormulaService {
     for (let i = 0; i < items.length; i++) {
       const dto = items[i]!;
       try {
+        // Resolve subjectCode → subjectId (Library exports are code-based).
+        let subjectId = dto.subjectId;
+        if (!subjectId && dto.subjectCode) {
+          const subj = await this.prisma.subject.findUnique({ where: { code: dto.subjectCode.toUpperCase() }, select: { id: true } });
+          if (!subj) { errors.push({ index: i, name: dto.name, message: `subjectCode '${dto.subjectCode}' not found` }); continue; }
+          subjectId = subj.id;
+        }
+        if (!subjectId) { errors.push({ index: i, name: dto.name, message: 'subjectId or subjectCode required' }); continue; }
         const slug = this.slugify(dto.name);
         const existing = await this.prisma.formulaLibrary.findFirst({
           where: { OR: [{ slug }, { name: dto.name }] },
@@ -108,7 +116,7 @@ export class FormulaService {
         });
         const variablesEnvelope = this.withFormulaId(dto.variables, dto.formulaId);
         const data = {
-          name: dto.name, slug, subjectId: dto.subjectId, topicId: dto.topicId ?? null,
+          name: dto.name, slug, subjectId, topicId: dto.topicId ?? null,
           expressionText: dto.expressionText, expressionLatex: dto.expressionLatex,
           variables: variablesEnvelope as unknown as Prisma.InputJsonValue, unitsSystem: dto.unitsSystem,
           imperialExpression: dto.imperialExpression ?? null, derivation: dto.derivation ?? null,

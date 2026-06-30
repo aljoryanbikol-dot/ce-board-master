@@ -42,8 +42,15 @@ export type UpdateFormulaDto = z.infer<typeof UpdateFormulaSchema>;
  * natural key (name/slug): existing formulas are updated, new ones created — so
  * re-importing the same Library export never duplicates.
  */
+// Sync items may identify the subject by code (Library-friendly) OR by uuid.
+export const FormulaSyncItemSchema = CreateFormulaSchema.extend({
+  subjectId: z.string().uuid().optional(),
+  subjectCode: z.string().trim().max(20).optional(),
+}).refine((d) => d.subjectId || d.subjectCode, { message: 'subjectId or subjectCode is required.' });
+export type FormulaSyncItem = z.infer<typeof FormulaSyncItemSchema>;
+
 export const BulkSyncFormulaSchema = z.object({
-  formulas: z.array(CreateFormulaSchema).min(1, 'At least one formula is required.').max(1000),
+  formulas: z.array(FormulaSyncItemSchema).min(1, 'At least one formula is required.').max(1000),
 });
 export type BulkSyncFormulaDto = z.infer<typeof BulkSyncFormulaSchema>;
 
