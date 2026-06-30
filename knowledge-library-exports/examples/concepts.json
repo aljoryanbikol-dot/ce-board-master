@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "publicId": "EXAMPLE-CON-001",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-BEAM",
+      "title": "[EXAMPLE] Bending of simply supported beams",
+      "summary": "Internal bending moment and shear under transverse load.",
+      "body": "For a simply supported beam under a uniformly distributed load $w$, the bending moment is maximum at midspan: $M_{max}=\\frac{wL^2}{8}$.",
+      "bloomLevel": "understand",
+      "keywords": ["bending", "beam"],
+      "relatedFormulaSlugs": ["max-moment-simply-supported-beam-udl"],
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

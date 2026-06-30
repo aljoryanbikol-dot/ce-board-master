@@ -1,0 +1,14 @@
+{
+  "items": [
+    {
+      "publicId": "EXAMPLE-EN-001",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-BEAM",
+      "title": "[EXAMPLE] Where the maximum moment occurs",
+      "body": "For a simply supported beam with a symmetric uniformly distributed load, shear $V=0$ at midspan, so the bending moment is maximum there.",
+      "tags": ["beam"],
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

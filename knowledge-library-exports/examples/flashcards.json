@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "publicId": "EXAMPLE-FC-001",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-BEAM",
+      "front": "[EXAMPLE] Max moment of a simply supported beam under a uniformly distributed load?",
+      "back": "M_max = wL²/8 at midspan",
+      "hint": "Parabolic bending moment diagram",
+      "difficulty": "easy",
+      "tags": ["beams"],
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

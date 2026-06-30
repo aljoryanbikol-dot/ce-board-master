@@ -1,0 +1,15 @@
+{
+  "items": [
+    {
+      "publicId": "EXAMPLE-TP-001",
+      "name": "[EXAMPLE] Explain question (grounded)",
+      "role": "system",
+      "category": "explanation",
+      "promptText": "You are a CE board exam tutor. Ground every claim in the provided knowledge-base context and cite the learning objective or formula you used. If nothing in the KB is relevant, say so explicitly rather than guessing.",
+      "model": "claude-opus-4-8",
+      "tags": ["explain"],
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

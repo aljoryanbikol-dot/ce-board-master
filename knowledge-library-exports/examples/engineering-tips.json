@@ -1,0 +1,14 @@
+{
+  "items": [
+    {
+      "publicId": "EXAMPLE-ET-001",
+      "subjectCode": "STRUC",
+      "category": "exam-strategy",
+      "title": "[EXAMPLE] Spot the governing load case fast",
+      "tip": "Sketch the shear and moment diagrams first — the governing section is almost always where V=0.",
+      "tags": ["strategy"],
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

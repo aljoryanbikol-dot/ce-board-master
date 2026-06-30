@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "publicId": "EXAMPLE-MIS-001",
+      "subjectCode": "STR",
+      "topicCode": "BEA",
+      "subtopicCode": "ANA",
+      "category": "GEN",
+      "sequenceNumber": 1,
+      "title": "[EXAMPLE] Using the cantilever moment formula for a simply supported beam",
+      "description": "Students apply wL²/2 (the cantilever formula) instead of wL²/8 (simply supported, uniformly distributed load).",
+      "whyItHappens": "Formula confusion between support conditions.",
+      "correction": "Simply supported beam under a uniformly distributed load: M_max = wL²/8 at midspan.",
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

@@ -1,0 +1,18 @@
+{
+  "_instructions": "composition[].subjectId must be a real Subject UUID from this website (ask the website team, or GET /admin/subjects with an admin token). The placeholder below will NOT resolve to a real subject — replace it before syncing. This field is ignored by the backend (unknown keys are stripped); it is here only as a note for whoever edits this file.",
+  "items": [
+    {
+      "code": "EXAMPLE-MOCK-1",
+      "name": "[EXAMPLE] Structural Engineering — Mock 1",
+      "kind": "subject",
+      "durationMinutes": 180,
+      "passingScore": 70,
+      "randomizeQuestions": true,
+      "randomizeChoices": true,
+      "composition": [
+        { "subjectId": "00000000-0000-0000-0000-000000000000", "count": 50 }
+      ]
+    }
+  ],
+  "atomic": true
+}

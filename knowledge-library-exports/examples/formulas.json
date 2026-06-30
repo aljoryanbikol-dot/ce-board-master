@@ -1,0 +1,18 @@
+{
+  "formulas": [
+    {
+      "name": "[EXAMPLE] Max Moment — Simply Supported Beam (UDL)",
+      "subjectCode": "STRUC",
+      "expressionText": "M_max = w*L^2/8",
+      "expressionLatex": "M_{max} = \\frac{wL^2}{8}",
+      "variables": [
+        { "symbol": "M", "name": "Max moment", "unit": "kN·m" },
+        { "symbol": "w", "name": "UDL", "unit": "kN/m" },
+        { "symbol": "L", "name": "Span", "unit": "m" }
+      ],
+      "unitsSystem": "SI",
+      "limitations": "Simply supported beam, uniform load only.",
+      "typicalApplications": ["beam design"]
+    }
+  ]
+}

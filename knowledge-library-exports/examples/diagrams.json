@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "publicId": "EXAMPLE-DIA-001",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-BEAM",
+      "title": "[EXAMPLE] Simply supported beam under UDL",
+      "description": "Free body diagram with the corresponding bending moment diagram.",
+      "imageUrl": "https://cdn.ceboardmaster.com/diagrams/example-beam-udl.png",
+      "altText": "Simply supported beam under uniform load with bending moment diagram",
+      "caption": "Fig. 1 — M_max = wL²/8 at midspan",
+      "diagramType": "free_body",
+      "tags": ["beam"],
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

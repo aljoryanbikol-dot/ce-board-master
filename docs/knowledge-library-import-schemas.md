@@ -5,6 +5,13 @@ the website only **consumes and publishes** content via these schemas. Exports a
 and are imported **without manual editing** — adapters resolve human-readable **codes** to
 internal IDs, so the Library never needs to know the website's UUIDs.
 
+**For a machine-checkable version of this contract** — formal JSON Schema, a zero-dependency
+validator script, and one ready-to-copy example file per type — see
+[`/knowledge-library-exports`](../knowledge-library-exports/README.md). That folder is the
+source to copy from; this document is the narrative explanation. If the two ever disagree,
+`knowledge-library-exports/schemas/knowledge-library.schema.json` wins (run
+`node knowledge-library-exports/validate.cjs --all` to check).
+
 ## How to export & sync
 
 Each content type is a JSON file shaped as `{ "items": [ … ] }` (a bare `[ … ]` array also works).
@@ -53,6 +60,10 @@ Required: `publicId`, `title`, `body`. `relatedFormulaSlugs` reference Formula `
 ```
 `publicId` is built as `LO-<SUBJ>-<TOPIC>-<SUBTOPIC>-<SEQ>`. Required: `subjectCode`, `topicCode`,
 `subtopicCode`, `sequenceNumber`, `statement`. Synced objectives are **published** (AI-Tutor grounding).
+
+⚠ **Known limitation (current production):** `subjectCode` here must be **exactly 3 characters**
+(the short PRC-style code, e.g. `"STR"`), not the full `Subject.code` (`"STRUC"`) that every other
+type in this document accepts. A widening fix exists in the codebase but is not yet deployed.
 
 ## 3. Formula Library — `POST /admin/formulas/bulk-import` · key `name`/`slug`
 ```json
@@ -173,16 +184,22 @@ Required: `publicId`, `name`, `promptText`. `role` ∈ `system | user | assistan
   "code": "STR-MOCK-1", "name": "Structural — Mock 1",
   "kind": "subject", "durationMinutes": 180, "passingScore": 70,
   "randomizeQuestions": true, "randomizeChoices": true,
-  "composition": [ { "subjectCode": "STR", "count": 50, "difficultyCode": "intermediate" } ]
+  "composition": [ { "subjectId": "<real Subject UUID>", "count": 50 } ]
 } ] }
 ```
 Required: `code`, `name`, `kind`, `durationMinutes`, `composition[]`. `kind` ∈
-`full_board | subject | custom | adaptive | ai_generated`. (Adapter resolves
-`subjectCode`/`difficultyCode` in each composition entry → IDs.)
+`full_board | subject | custom | adaptive | ai_generated`.
+
+⚠ **Known limitation (current production):** unlike every other type above,
+`composition[].subjectId` requires the website's **actual internal Subject UUID** —
+there is no `subjectCode` resolution for this one field yet. Ask the website team
+for current Subject IDs before building this file. The sync engine also does not
+verify the UUID exists at sync time; a bad ID only surfaces later, when a student
+tries to generate an exam from the template.
 
 ## 13. Questions — `POST /admin/sync/questions` · key `questionCode`
 ```json
-{ "questions": [ {
+{ "items": [ {
   "questionCode": "STR-0001",
   "subjectCode": "STR", "topicCode": "1", "subtopicCode": "1", "difficultyCode": "intermediate",
   "stemText": "A simply supported beam, span $L=6$ m, UDL $w=12$ kN/m. Max bending moment?",

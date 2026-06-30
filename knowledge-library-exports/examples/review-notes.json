@@ -1,0 +1,15 @@
+{
+  "items": [
+    {
+      "publicId": "EXAMPLE-RN-001",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-BEAM",
+      "title": "[EXAMPLE] Beams — quick review",
+      "body": "Key formulas: M_max = wL²/8 and V_max = wL/2 for a simply supported beam under a uniformly distributed load.",
+      "examWeight": 12.5,
+      "tags": ["beams"],
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

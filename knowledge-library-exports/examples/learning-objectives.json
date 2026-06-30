@@ -1,0 +1,14 @@
+{
+  "objectives": [
+    {
+      "subjectCode": "STR",
+      "topicCode": 1,
+      "subtopicCode": 1,
+      "sequenceNumber": 1,
+      "statement": "[EXAMPLE] Calculate the maximum bending moment of a simply supported beam under a uniformly distributed load.",
+      "bloomLevel": "apply",
+      "measurable": true,
+      "keywords": ["beam", "moment"]
+    }
+  ]
+}

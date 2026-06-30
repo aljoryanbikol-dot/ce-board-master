@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "questionCode": "EXAMPLE-0001",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-BEAM",
+      "subtopicCode": "STRUC-BEAM-ANAL",
+      "difficultyCode": "Intermediate",
+      "stemText": "[EXAMPLE — replace with real content] A simply supported beam of span $L=6$ m carries a uniformly distributed load $w=12$ kN/m. What is the maximum bending moment?",
+      "choices": [
+        { "letter": "A", "text": "54 kN·m" },
+        { "letter": "B", "text": "36 kN·m" },
+        { "letter": "C", "text": "72 kN·m" },
+        { "letter": "D", "text": "108 kN·m" }
+      ],
+      "correctChoice": "A",
+      "explanationText": "[EXAMPLE] For a uniformly distributed load, $M_{max}=\\frac{wL^2}{8}=\\frac{12\\times 6^2}{8}=54$ kN·m.",
+      "bloomLevel": "apply",
+      "questionType": "computation",
+      "estSolvingTimeSec": 120,
+      "learningObjective": "LO-STR-001-001-001",
+      "prcYearAppeared": [2019],
+      "keywords": ["beam", "moment"],
+      "formulaSlugs": ["max-moment-simply-supported-beam-udl"],
+      "diagramPublicIds": ["DIA-STR-BEAM-001"],
+      "intelligence": {
+        "engineeringNotes": "[EXAMPLE] Shear is zero at midspan, which is where the bending moment is maximum.",
+        "commonMistakes": ["Using the cantilever formula wL^2/2 instead of wL^2/8"]
+      },
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

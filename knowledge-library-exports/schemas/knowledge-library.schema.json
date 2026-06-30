@@ -1,0 +1,325 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ceboardmaster.com/schemas/knowledge-library.schema.json",
+  "title": "CE Board Master — Knowledge Library Export Schemas",
+  "description": "Official, machine-checkable contract for JSON exports produced by the CE Board Master Knowledge Library and consumed by the website's Knowledge Sync engine (POST /admin/sync/* and the two legacy bulk-import endpoints). Transcribed directly from the live Zod validators in apps/api — see validate.cjs in this folder to check a candidate export file against this schema before handoff. Unknown extra fields on an item are silently ignored by the backend (Zod 'strip' mode), so they are not rejected here either; only declared fields are type/shape-checked.",
+
+  "$defs": {
+    "Status": { "type": "string", "enum": ["draft", "in_review", "approved", "published", "deprecated", "archived"], "default": "published" },
+    "Bloom": { "type": "string", "enum": ["remember", "understand", "apply", "analyze", "evaluate", "create"] },
+    "Tags": { "type": "array", "items": { "type": "string", "maxLength": 60 }, "maxItems": 50, "default": [] },
+
+    "Choice": {
+      "type": "object",
+      "required": ["letter", "text"],
+      "properties": {
+        "letter": { "type": "string", "enum": ["A", "B", "C", "D"] },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "latex": { "type": ["string", "null"], "maxLength": 4000, "description": "Optional KaTeX for this choice." }
+      }
+    },
+
+    "Question": {
+      "type": "object",
+      "required": ["questionCode", "subjectCode", "topicCode", "subtopicCode", "difficultyCode", "stemText", "choices", "correctChoice", "explanationText"],
+      "properties": {
+        "questionCode": { "type": "string", "pattern": "^[A-Za-z0-9-]{3,30}$", "description": "Normalized to uppercase server-side. This is the upsert key — re-sync with the same code updates the existing question in place." },
+        "subjectCode": { "type": "string", "minLength": 1, "description": "Subject.code, e.g. 'STRUC'. Resolved to a Subject UUID by the adapter." },
+        "topicCode": { "type": "string", "minLength": 1, "description": "Topic.code, e.g. 'STRUC-BEAM'." },
+        "subtopicCode": { "type": "string", "minLength": 1, "description": "Subtopic.code, e.g. 'STRUC-BEAM-ANAL'." },
+        "difficultyCode": { "type": "string", "minLength": 1, "description": "DifficultyLevel.name or numeric DifficultyLevel.code, e.g. 'Intermediate' or '2'." },
+        "stemText": { "type": "string", "minLength": 10, "maxLength": 8000, "description": "Markdown + KaTeX ($...$ inline, $$...$$ block) and Markdown images ![alt](url) for diagrams." },
+        "stemLatex": { "type": ["string", "null"], "maxLength": 16000 },
+        "choices": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "$ref": "#/$defs/Choice" } },
+        "correctChoice": { "type": "string", "enum": ["A", "B", "C", "D"] },
+        "explanationText": { "type": "string", "minLength": 10, "maxLength": 8000 },
+        "bloomLevel": { "$ref": "#/$defs/Bloom", "default": "apply" },
+        "questionType": { "type": "string", "enum": ["multiple_choice", "computation", "diagram_based"], "default": "multiple_choice" },
+        "estSolvingTimeSec": { "type": "integer", "minimum": 5, "maximum": 3600, "default": 90 },
+        "learningObjective": { "type": ["string", "null"], "maxLength": 80, "description": "Learning Objective publicId, e.g. 'LO-STR-001-001-001'. Relationship warning (not fatal) if not found." },
+        "prcSyllabusRef": { "type": ["string", "null"], "maxLength": 100 },
+        "prcYearAppeared": { "type": "array", "items": { "type": "integer", "minimum": 1900, "maximum": 2100 }, "maxItems": 50, "default": [] },
+        "keywords": { "type": "array", "items": { "type": "string", "maxLength": 50 }, "maxItems": 30, "default": [] },
+        "formulaSlugs": { "type": "array", "items": { "type": "string", "maxLength": 100 }, "maxItems": 20, "default": [], "description": "Formula.slug values to link (QuestionFormula). Relationship warning (not fatal) if a slug is not found." },
+        "diagramPublicIds": { "type": "array", "items": { "type": "string", "maxLength": 80 }, "maxItems": 20, "default": [], "description": "Diagram.publicId values referenced by this question. Relationship warning (not fatal) if not found." },
+        "intelligence": {
+          "type": "object",
+          "properties": {
+            "engineeringNotes": { "type": ["string", "null"], "maxLength": 8000 },
+            "commonMistakes": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 1000 }, "maxItems": 20 }
+          }
+        },
+        "status": { "$ref": "#/$defs/Status", "default": "published" }
+      }
+    },
+    "QuestionsExport": {
+      "type": "object",
+      "required": ["items"],
+      "properties": {
+        "items": { "type": "array", "minItems": 1, "maxItems": 5000, "items": { "$ref": "#/$defs/Question" } },
+        "atomic": { "type": "boolean", "default": true, "description": "If true (default), the entire batch is rejected and rolled back when any row fails." }
+      }
+    },
+
+    "Variable": {
+      "type": "object",
+      "required": ["symbol", "name"],
+      "properties": {
+        "symbol": { "type": "string", "minLength": 1, "maxLength": 20 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "unit": { "type": "string", "maxLength": 40 },
+        "description": { "type": "string", "maxLength": 300 }
+      }
+    },
+    "Formula": {
+      "type": "object",
+      "required": ["name", "expressionText", "expressionLatex"],
+      "description": "Exactly one of subjectId or subjectCode is required (the adapter resolves subjectCode -> subjectId).",
+      "properties": {
+        "formulaId": { "type": "string", "description": "Optional governing [Subject]-F-#### identifier." },
+        "name": { "type": "string", "minLength": 3, "maxLength": 200, "description": "Natural key (slug auto-derived). Re-sync with the same name updates in place." },
+        "subjectId": { "type": "string", "format": "uuid" },
+        "subjectCode": { "type": "string", "maxLength": 20, "description": "Subject.code, e.g. 'STRUC'. Preferred over subjectId for Library exports." },
+        "topicId": { "type": "string", "format": "uuid" },
+        "expressionText": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "expressionLatex": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "variables": { "type": "array", "items": { "$ref": "#/$defs/Variable" }, "default": [] },
+        "unitsSystem": { "type": "string", "maxLength": 10, "default": "SI" },
+        "imperialExpression": { "type": "string", "maxLength": 2000 },
+        "derivation": { "type": "string", "maxLength": 8000 },
+        "assumptions": { "type": "array", "items": { "type": "string", "maxLength": 300 }, "default": [] },
+        "limitations": { "type": "string", "maxLength": 2000 },
+        "typicalApplications": { "type": "array", "items": { "type": "string", "maxLength": 200 }, "default": [] },
+        "exampleProblem": { "type": "string", "maxLength": 8000 }
+      }
+    },
+    "FormulasExport": {
+      "type": "object",
+      "required": ["formulas"],
+      "properties": { "formulas": { "type": "array", "minItems": 1, "maxItems": 1000, "items": { "$ref": "#/$defs/Formula" } } }
+    },
+
+    "Diagram": {
+      "type": "object",
+      "required": ["publicId", "title", "imageUrl", "altText"],
+      "properties": {
+        "publicId": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "subjectCode": { "type": "string", "maxLength": 10 },
+        "topicCode": { "type": "string", "maxLength": 10 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "description": { "type": ["string", "null"], "maxLength": 2000 },
+        "imageUrl": { "type": "string", "format": "uri", "maxLength": 1000 },
+        "altText": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "caption": { "type": ["string", "null"], "maxLength": 500 },
+        "diagramType": { "type": ["string", "null"], "maxLength": 60 },
+        "tags": { "$ref": "#/$defs/Tags" },
+        "status": { "$ref": "#/$defs/Status" }
+      }
+    },
+    "DiagramsExport": {
+      "type": "object",
+      "required": ["items"],
+      "properties": { "items": { "type": "array", "minItems": 1, "maxItems": 5000, "items": { "$ref": "#/$defs/Diagram" } }, "atomic": { "type": "boolean", "default": true } }
+    },
+
+    "LearningObjective": {
+      "type": "object",
+      "required": ["subjectCode", "topicCode", "subtopicCode", "sequenceNumber", "statement"],
+      "description": "publicId is NOT supplied — it is derived server-side as LO-<subjectCode>-<topicCode>-<subtopicCode>-<sequenceNumber> (each numeric part zero-padded to 3 digits). KNOWN LIMITATION (deployed today): subjectCode here must be EXACTLY 3 characters (the short PRC-style code, e.g. 'STR'), NOT the full Subject.code ('STRUC'). A widening fix to accept Subject.code directly is written but not yet deployed — see docs/knowledge-library-import-schemas.md.",
+      "properties": {
+        "subjectCode": { "type": "string", "minLength": 3, "maxLength": 3, "description": "3-letter PRC-style subject code, e.g. 'STR', 'MAT', 'HGE'." },
+        "topicCode": { "type": "integer", "minimum": 0, "maximum": 999 },
+        "subtopicCode": { "type": "integer", "minimum": 0, "maximum": 999 },
+        "sequenceNumber": { "type": "integer", "minimum": 1, "maximum": 999 },
+        "statement": { "type": "string", "minLength": 10, "maxLength": 2000 },
+        "bloomLevel": { "$ref": "#/$defs/Bloom", "default": "apply" },
+        "measurable": { "type": "boolean", "default": true },
+        "keywords": { "type": "array", "items": { "type": "string", "maxLength": 50 }, "maxItems": 30, "default": [] },
+        "subjectId": { "type": "string", "format": "uuid" },
+        "sourceDocumentId": { "type": "string", "format": "uuid" }
+      }
+    },
+    "LearningObjectivesExport": {
+      "type": "object",
+      "required": ["objectives"],
+      "properties": { "objectives": { "type": "array", "minItems": 1, "maxItems": 2000, "items": { "$ref": "#/$defs/LearningObjective" } } }
+    },
+
+    "Concept": {
+      "type": "object",
+      "required": ["publicId", "title", "body"],
+      "properties": {
+        "publicId": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "subjectCode": { "type": "string", "maxLength": 10 },
+        "topicCode": { "type": "string", "maxLength": 10 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "summary": { "type": ["string", "null"], "maxLength": 2000 },
+        "body": { "type": "string", "minLength": 1, "description": "Markdown + KaTeX." },
+        "bloomLevel": { "$ref": "#/$defs/Bloom", "default": "understand" },
+        "keywords": { "type": "array", "items": { "type": "string", "maxLength": 60 }, "maxItems": 50, "default": [] },
+        "relatedFormulaSlugs": { "type": "array", "items": { "type": "string", "maxLength": 100 }, "maxItems": 50, "default": [], "description": "Formula.slug values. Relationship warning (not fatal) if not found." },
+        "status": { "$ref": "#/$defs/Status" }
+      }
+    },
+    "ConceptsExport": {
+      "type": "object",
+      "required": ["items"],
+      "properties": { "items": { "type": "array", "minItems": 1, "maxItems": 5000, "items": { "$ref": "#/$defs/Concept" } }, "atomic": { "type": "boolean", "default": true } }
+    },
+
+    "EngineeringNote": {
+      "type": "object",
+      "required": ["publicId", "title", "body"],
+      "properties": {
+        "publicId": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "subjectCode": { "type": "string", "maxLength": 10 },
+        "topicCode": { "type": "string", "maxLength": 10 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "body": { "type": "string", "minLength": 1 },
+        "tags": { "$ref": "#/$defs/Tags" },
+        "status": { "$ref": "#/$defs/Status" }
+      }
+    },
+    "EngineeringNotesExport": {
+      "type": "object",
+      "required": ["items"],
+      "properties": { "items": { "type": "array", "minItems": 1, "maxItems": 5000, "items": { "$ref": "#/$defs/EngineeringNote" } }, "atomic": { "type": "boolean", "default": true } }
+    },
+
+    "EngineeringTip": {
+      "type": "object",
+      "required": ["publicId", "title", "tip"],
+      "properties": {
+        "publicId": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "subjectCode": { "type": "string", "maxLength": 10 },
+        "category": { "type": ["string", "null"], "maxLength": 60 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "tip": { "type": "string", "minLength": 1 },
+        "tags": { "$ref": "#/$defs/Tags" },
+        "status": { "$ref": "#/$defs/Status" }
+      }
+    },
+    "EngineeringTipsExport": {
+      "type": "object",
+      "required": ["items"],
+      "properties": { "items": { "type": "array", "minItems": 1, "maxItems": 5000, "items": { "$ref": "#/$defs/EngineeringTip" } }, "atomic": { "type": "boolean", "default": true } }
+    },
+
+    "Misconception": {
+      "type": "object",
+      "required": ["publicId", "subjectCode", "topicCode", "subtopicCode", "category", "sequenceNumber", "title", "description"],
+      "description": "KNOWN LIMITATION (deployed today): subjectCode/topicCode/subtopicCode/category are each capped at 3 characters server-side. A widening fix is written but not yet deployed.",
+      "properties": {
+        "publicId": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "subjectCode": { "type": "string", "minLength": 1, "maxLength": 3 },
+        "topicCode": { "type": "string", "minLength": 1, "maxLength": 3 },
+        "subtopicCode": { "type": "string", "minLength": 1, "maxLength": 3 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 3 },
+        "sequenceNumber": { "type": "integer", "minimum": 1, "maximum": 999 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "description": { "type": "string", "minLength": 1 },
+        "whyItHappens": { "type": ["string", "null"] },
+        "correction": { "type": ["string", "null"] },
+        "status": { "$ref": "#/$defs/Status" }
+      }
+    },
+    "MisconceptionsExport": {
+      "type": "object",
+      "required": ["items"],
+      "properties": { "items": { "type": "array", "minItems": 1, "maxItems": 5000, "items": { "$ref": "#/$defs/Misconception" } }, "atomic": { "type": "boolean", "default": true } }
+    },
+
+    "ReviewNote": {
+      "type": "object",
+      "required": ["publicId", "title", "body"],
+      "properties": {
+        "publicId": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "subjectCode": { "type": "string", "maxLength": 10 },
+        "topicCode": { "type": "string", "maxLength": 10 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "body": { "type": "string", "minLength": 1 },
+        "examWeight": { "type": ["number", "null"], "minimum": 0, "maximum": 100, "description": "Approximate % weight of this topic on the board exam." },
+        "tags": { "$ref": "#/$defs/Tags" },
+        "status": { "$ref": "#/$defs/Status" }
+      }
+    },
+    "ReviewNotesExport": {
+      "type": "object",
+      "required": ["items"],
+      "properties": { "items": { "type": "array", "minItems": 1, "maxItems": 5000, "items": { "$ref": "#/$defs/ReviewNote" } }, "atomic": { "type": "boolean", "default": true } }
+    },
+
+    "Flashcard": {
+      "type": "object",
+      "required": ["publicId", "front", "back"],
+      "properties": {
+        "publicId": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "subjectCode": { "type": "string", "maxLength": 10 },
+        "topicCode": { "type": "string", "maxLength": 10 },
+        "front": { "type": "string", "minLength": 1 },
+        "back": { "type": "string", "minLength": 1 },
+        "hint": { "type": ["string", "null"], "maxLength": 2000 },
+        "difficulty": { "type": ["string", "null"], "maxLength": 20 },
+        "tags": { "$ref": "#/$defs/Tags" },
+        "status": { "$ref": "#/$defs/Status" }
+      }
+    },
+    "FlashcardsExport": {
+      "type": "object",
+      "required": ["items"],
+      "properties": { "items": { "type": "array", "minItems": 1, "maxItems": 5000, "items": { "$ref": "#/$defs/Flashcard" } }, "atomic": { "type": "boolean", "default": true } }
+    },
+
+    "TutorPrompt": {
+      "type": "object",
+      "required": ["publicId", "name", "promptText"],
+      "properties": {
+        "publicId": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "role": { "type": "string", "enum": ["system", "user", "assistant"], "default": "system" },
+        "category": { "type": ["string", "null"], "maxLength": 60 },
+        "promptText": { "type": "string", "minLength": 1 },
+        "model": { "type": ["string", "null"], "maxLength": 100 },
+        "tags": { "$ref": "#/$defs/Tags" },
+        "status": { "$ref": "#/$defs/Status" }
+      }
+    },
+    "TutorPromptsExport": {
+      "type": "object",
+      "required": ["items"],
+      "properties": { "items": { "type": "array", "minItems": 1, "maxItems": 5000, "items": { "$ref": "#/$defs/TutorPrompt" } }, "atomic": { "type": "boolean", "default": true } }
+    },
+
+    "CompositionEntry": {
+      "type": "object",
+      "required": ["subjectId", "count"],
+      "description": "KNOWN LIMITATION: subjectId currently requires the website's internal Subject UUID (no subjectCode alternative yet, unlike Questions/Formulas). Ask the website team for current Subject IDs (GET /admin/subjects) before building this file.",
+      "properties": {
+        "subjectId": { "type": "string", "format": "uuid" },
+        "count": { "type": "integer", "minimum": 1, "maximum": 500 },
+        "difficultyLevelId": { "type": "string", "format": "uuid" },
+        "weightPercent": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "MockExamTemplate": {
+      "type": "object",
+      "required": ["code", "name", "kind", "durationMinutes", "composition"],
+      "properties": {
+        "code": { "type": "string", "minLength": 2, "maxLength": 50, "description": "Upsert key (normalized to uppercase)." },
+        "name": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "description": { "type": ["string", "null"], "maxLength": 2000 },
+        "kind": { "type": "string", "enum": ["full_board", "subject", "custom", "adaptive", "ai_generated"] },
+        "durationMinutes": { "type": "integer", "minimum": 1, "maximum": 600 },
+        "passingScore": { "type": "number", "minimum": 0, "maximum": 100, "default": 70 },
+        "randomizeQuestions": { "type": "boolean", "default": true },
+        "randomizeChoices": { "type": "boolean", "default": true },
+        "composition": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/CompositionEntry" } }
+      }
+    },
+    "MockExamTemplatesExport": {
+      "type": "object",
+      "required": ["items"],
+      "properties": { "items": { "type": "array", "minItems": 1, "maxItems": 200, "items": { "$ref": "#/$defs/MockExamTemplate" } }, "atomic": { "type": "boolean", "default": true } }
+    }
+  }
+}
