@@ -1575,7 +1575,7 @@ model KnowledgeSection {
 model LearningObjective {
   id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   publicId        String                  @unique @db.VarChar(40) @map("public_id")
-  subjectCode     String                  @db.VarChar(3) @map("subject_code")
+  subjectCode     String                  @db.VarChar(10) @map("subject_code")
   topicCode       String                  @db.VarChar(3) @map("topic_code")
   subtopicCode    String                  @db.VarChar(3) @map("subtopic_code")
   sequenceNumber  Int                     @map("sequence_number") @db.SmallInt
@@ -1627,7 +1627,7 @@ model LearningObjectiveVersion {
 model QuestionBlueprint {
   id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   publicId           String          @unique @db.VarChar(50) @map("public_id")
-  subjectCode        String          @db.VarChar(3) @map("subject_code")
+  subjectCode        String          @db.VarChar(10) @map("subject_code")
   topicCode          String          @db.VarChar(3) @map("topic_code")
   subtopicCode       String          @db.VarChar(3) @map("subtopic_code")
   blueprintType      String          @db.VarChar(3) @map("blueprint_type")
@@ -1659,7 +1659,7 @@ model QuestionBlueprint {
 model Misconception {
   id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   publicId           String          @unique @db.VarChar(50) @map("public_id")
-  subjectCode        String          @db.VarChar(3) @map("subject_code")
+  subjectCode        String          @db.VarChar(10) @map("subject_code")
   topicCode          String          @db.VarChar(3) @map("topic_code")
   subtopicCode       String          @db.VarChar(3) @map("subtopic_code")
   category           String          @db.VarChar(3)
@@ -1768,7 +1768,7 @@ model AiGenerationRequest {
   // Grounding references into the Knowledge Base (public IDs).
   learningObjectiveId String?        @db.VarChar(40) @map("learning_objective_id")
   blueprintId       String?          @db.VarChar(50) @map("blueprint_id")
-  subjectCode       String?          @db.VarChar(3) @map("subject_code")
+  subjectCode       String?          @db.VarChar(10) @map("subject_code")
   topicCode         String?          @db.VarChar(3) @map("topic_code")
   difficultyBand    String?          @db.VarChar(20) @map("difficulty_band")
   // Inputs and outputs.

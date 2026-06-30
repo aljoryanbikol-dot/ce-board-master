@@ -148,7 +148,7 @@ const tutorPromptCfg: SyncConfig<z.infer<typeof TutorPromptInput>> = {
 // ── Common Misconception (existing table; key publicId, version=currentVersion) ─
 const MisconceptionInput = z.object({
   publicId,
-  subjectCode: z.string().trim().max(3),
+  subjectCode: z.string().trim().min(2).max(10),
   topicCode: z.string().trim().max(3),
   subtopicCode: z.string().trim().max(3),
   category: z.string().trim().max(3),

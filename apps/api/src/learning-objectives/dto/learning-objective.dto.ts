@@ -8,7 +8,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 const BLOOM = ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create'] as const;
 
 export const CreateLearningObjectiveSchema = z.object({
-  subjectCode:   z.string().trim().toUpperCase().length(3),
+  subjectCode:   z.string().trim().toUpperCase().min(2).max(10),
   topicCode:     z.coerce.number().int().min(0).max(999),
   subtopicCode:  z.coerce.number().int().min(0).max(999),
   sequenceNumber: z.coerce.number().int().min(1).max(999),
@@ -40,7 +40,7 @@ export const UpdateLearningObjectiveSchema = z.object({
 export type UpdateLearningObjectiveDto = z.infer<typeof UpdateLearningObjectiveSchema>;
 
 export const LoSearchSchema = z.object({
-  subjectCode: z.string().trim().toUpperCase().length(3).optional(),
+  subjectCode: z.string().trim().toUpperCase().min(2).max(10).optional(),
   topicCode:   z.string().trim().optional(),
   status:      z.enum(['draft', 'in_review', 'approved', 'published', 'deprecated', 'archived']).optional(),
   bloomLevel:  z.enum(BLOOM).optional(),
