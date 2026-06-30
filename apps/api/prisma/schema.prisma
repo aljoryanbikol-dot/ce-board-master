@@ -2569,3 +2569,221 @@ model TutorCoachingNote {
   @@index([userId, trigger])
   @@map("tutor_coaching_notes")
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// Knowledge Library synced content (type-aware specialized models).
+//
+// All models below share a common SYNC BASE convention so the generic
+// ContentSyncService can operate over any of them:
+//   publicId (unique natural key) · status · version · semver · contentHash
+//   (idempotency) · sourceProject · syncedAt · isActive · timestamps · deletedAt
+// Each model adds its own type-specific, searchable/indexed columns. Content is
+// authored in the Cowork Knowledge Library and consumed here via idempotent sync.
+// ════════════════════════════════════════════════════════════════════════════
+
+/// Generic, polymorphic version-history snapshots for every synced content type.
+model ContentSyncVersion {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityType    String   @db.VarChar(40) @map("entity_type")
+  entityId      String   @db.Uuid @map("entity_id")
+  publicId      String   @db.VarChar(80) @map("public_id")
+  version       Int      @db.SmallInt
+  semver        String   @db.VarChar(20)
+  contentHash   String?  @db.VarChar(64) @map("content_hash")
+  snapshot      Json
+  changeSummary String?  @map("change_summary")
+  syncedBy      String?  @db.Uuid @map("synced_by")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([entityType, entityId, version])
+  @@index([entityType, entityId])
+  @@map("content_sync_versions")
+}
+
+/// Conceptual explanations of CE topics.
+model Concept {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId      String          @unique @db.VarChar(80) @map("public_id")
+  subjectCode   String?         @db.VarChar(10) @map("subject_code")
+  topicCode     String?         @db.VarChar(10) @map("topic_code")
+  title         String          @db.VarChar(300)
+  summary       String?
+  body          String
+  bloomLevel    BloomLevel      @default(understand) @map("bloom_level")
+  keywords      String[]
+  relatedFormulaSlugs String[]  @map("related_formula_slugs")
+  status        KnowledgeStatus @default(published)
+  version       Int             @default(1) @db.SmallInt
+  semver        String          @default("1.0.0") @db.VarChar(20)
+  contentHash   String?         @db.VarChar(64) @map("content_hash")
+  sourceProject String?         @db.VarChar(120) @map("source_project")
+  syncedAt      DateTime?       @map("synced_at") @db.Timestamptz
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime?       @map("deleted_at") @db.Timestamptz
+
+  @@index([subjectCode, topicCode])
+  @@index([status])
+  @@map("concepts")
+}
+
+/// Examiner-style engineering notes (deeper derivations, assumptions).
+model EngineeringNote {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId      String          @unique @db.VarChar(80) @map("public_id")
+  subjectCode   String?         @db.VarChar(10) @map("subject_code")
+  topicCode     String?         @db.VarChar(10) @map("topic_code")
+  title         String          @db.VarChar(300)
+  body          String
+  tags          String[]
+  status        KnowledgeStatus @default(published)
+  version       Int             @default(1) @db.SmallInt
+  semver        String          @default("1.0.0") @db.VarChar(20)
+  contentHash   String?         @db.VarChar(64) @map("content_hash")
+  sourceProject String?         @db.VarChar(120) @map("source_project")
+  syncedAt      DateTime?       @map("synced_at") @db.Timestamptz
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime?       @map("deleted_at") @db.Timestamptz
+
+  @@index([subjectCode, topicCode])
+  @@index([status])
+  @@map("engineering_notes")
+}
+
+/// Short exam strategy / time-saving tips.
+model EngineeringTip {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId      String          @unique @db.VarChar(80) @map("public_id")
+  subjectCode   String?         @db.VarChar(10) @map("subject_code")
+  category      String?         @db.VarChar(60)
+  title         String          @db.VarChar(300)
+  tip           String
+  tags          String[]
+  status        KnowledgeStatus @default(published)
+  version       Int             @default(1) @db.SmallInt
+  semver        String          @default("1.0.0") @db.VarChar(20)
+  contentHash   String?         @db.VarChar(64) @map("content_hash")
+  sourceProject String?         @db.VarChar(120) @map("source_project")
+  syncedAt      DateTime?       @map("synced_at") @db.Timestamptz
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime?       @map("deleted_at") @db.Timestamptz
+
+  @@index([subjectCode])
+  @@index([category])
+  @@index([status])
+  @@map("engineering_tips")
+}
+
+/// Engineering diagram library (referenced by URL with alt text + caption).
+model Diagram {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId      String          @unique @db.VarChar(80) @map("public_id")
+  subjectCode   String?         @db.VarChar(10) @map("subject_code")
+  topicCode     String?         @db.VarChar(10) @map("topic_code")
+  title         String          @db.VarChar(300)
+  description   String?
+  imageUrl      String          @map("image_url")
+  altText       String          @map("alt_text")
+  caption       String?
+  diagramType   String?         @db.VarChar(60) @map("diagram_type")
+  tags          String[]
+  status        KnowledgeStatus @default(published)
+  version       Int             @default(1) @db.SmallInt
+  semver        String          @default("1.0.0") @db.VarChar(20)
+  contentHash   String?         @db.VarChar(64) @map("content_hash")
+  sourceProject String?         @db.VarChar(120) @map("source_project")
+  syncedAt      DateTime?       @map("synced_at") @db.Timestamptz
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime?       @map("deleted_at") @db.Timestamptz
+
+  @@index([subjectCode, topicCode])
+  @@index([diagramType])
+  @@index([status])
+  @@map("diagrams")
+}
+
+/// Condensed review notes / cheat-sheets per topic.
+model ReviewNote {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId      String          @unique @db.VarChar(80) @map("public_id")
+  subjectCode   String?         @db.VarChar(10) @map("subject_code")
+  topicCode     String?         @db.VarChar(10) @map("topic_code")
+  title         String          @db.VarChar(300)
+  body          String
+  examWeight    Decimal?        @map("exam_weight") @db.Decimal(5, 2)
+  tags          String[]
+  status        KnowledgeStatus @default(published)
+  version       Int             @default(1) @db.SmallInt
+  semver        String          @default("1.0.0") @db.VarChar(20)
+  contentHash   String?         @db.VarChar(64) @map("content_hash")
+  sourceProject String?         @db.VarChar(120) @map("source_project")
+  syncedAt      DateTime?       @map("synced_at") @db.Timestamptz
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime?       @map("deleted_at") @db.Timestamptz
+
+  @@index([subjectCode, topicCode])
+  @@index([status])
+  @@map("review_notes")
+}
+
+/// Spaced-repetition flashcards.
+model Flashcard {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId      String          @unique @db.VarChar(80) @map("public_id")
+  subjectCode   String?         @db.VarChar(10) @map("subject_code")
+  topicCode     String?         @db.VarChar(10) @map("topic_code")
+  front         String
+  back          String
+  hint          String?
+  difficulty    String?         @db.VarChar(20)
+  tags          String[]
+  status        KnowledgeStatus @default(published)
+  version       Int             @default(1) @db.SmallInt
+  semver        String          @default("1.0.0") @db.VarChar(20)
+  contentHash   String?         @db.VarChar(64) @map("content_hash")
+  sourceProject String?         @db.VarChar(120) @map("source_project")
+  syncedAt      DateTime?       @map("synced_at") @db.Timestamptz
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime?       @map("deleted_at") @db.Timestamptz
+
+  @@index([subjectCode, topicCode])
+  @@index([status])
+  @@map("flashcards")
+}
+
+/// Reusable, governed AI Tutor prompt templates.
+model TutorPrompt {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId      String          @unique @db.VarChar(80) @map("public_id")
+  name          String          @db.VarChar(200)
+  role          String          @default("system") @db.VarChar(20)
+  category      String?         @db.VarChar(60)
+  promptText    String          @map("prompt_text")
+  model         String?         @db.VarChar(100)
+  tags          String[]
+  status        KnowledgeStatus @default(published)
+  version       Int             @default(1) @db.SmallInt
+  semver        String          @default("1.0.0") @db.VarChar(20)
+  contentHash   String?         @db.VarChar(64) @map("content_hash")
+  sourceProject String?         @db.VarChar(120) @map("source_project")
+  syncedAt      DateTime?       @map("synced_at") @db.Timestamptz
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime?       @map("deleted_at") @db.Timestamptz
+
+  @@index([category])
+  @@index([status])
+  @@map("tutor_prompts")
+}

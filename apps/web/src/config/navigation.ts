@@ -7,7 +7,7 @@ import {
   LayoutDashboard, BookOpen, Dumbbell, FileText, Bot, CalendarRange, TrendingUp,
   BarChart3, Bookmark, History, User, CreditCard, Receipt, Settings,
   Database, Library, Sigma, Target, Layers, ClipboardCheck, Sparkles,
-  Users, Shield, KeyRound, ScrollText, SlidersHorizontal, Gauge, Tag, ArrowUpDown,
+  Users, Shield, KeyRound, ScrollText, SlidersHorizontal, Gauge, Tag, ArrowUpDown, RefreshCw,
 } from 'lucide-react';
 
 export interface NavItem { label: string; href: string; icon: LucideIcon; }
@@ -67,6 +67,7 @@ export const adminNav: NavSection[] = [
     label: 'Content',
     items: [
       { label: 'CMS', href: '/admin/cms', icon: Database },
+      { label: 'Knowledge Sync', href: '/admin/knowledge-sync', icon: RefreshCw },
       { label: 'Question Bank', href: '/admin/questions', icon: FileText },
       { label: 'Knowledge Base', href: '/admin/knowledge', icon: Library },
       { label: 'Formula Library', href: '/admin/formulas', icon: Sigma },
