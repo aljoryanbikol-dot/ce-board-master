@@ -22,6 +22,16 @@ export interface SyncConfig<T = unknown> {
   getDelegate: (client: PrismaService | Prisma.TransactionClient) => unknown;
   /** Columns searched by the list endpoint. */
   searchFields: string[];
+  /** Unique natural-key column (default 'publicId'). */
+  keyField?: string;
+  /** Version counter column (default 'version'). */
+  versionField?: string;
+  /** Semver column (default 'semver'). */
+  semverField?: string;
+  /** Soft-delete column reset to null on upsert (e.g. 'deletedAt'), if any. */
+  softDeleteField?: string;
+  /** Boolean active column set true on upsert (e.g. 'isActive'), if any. */
+  activeField?: string;
 }
 
 export interface SyncReport {

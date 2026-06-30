@@ -136,6 +136,75 @@ const tutorPromptCfg: SyncConfig<z.infer<typeof TutorPromptInput>> = {
   toData: (r) => ({ name: r.name, role: r.role, category: nn(r.category), promptText: r.promptText, model: nn(r.model), tags: r.tags, status: r.status }),
 };
 
+// ── Common Misconception (existing table; key publicId, version=currentVersion) ─
+const MisconceptionInput = z.object({
+  publicId,
+  subjectCode: z.string().trim().max(3),
+  topicCode: z.string().trim().max(3),
+  subtopicCode: z.string().trim().max(3),
+  category: z.string().trim().max(3),
+  sequenceNumber: z.coerce.number().int().min(1).max(999),
+  title: z.string().trim().min(1).max(300),
+  description: z.string().trim().min(1),
+  whyItHappens: z.string().trim().nullable().optional(),
+  correction: z.string().trim().nullable().optional(),
+  status: statusField,
+});
+const misconceptionCfg: SyncConfig<z.infer<typeof MisconceptionInput>> = {
+  kind: 'misconceptions', entityType: 'misconception', label: 'Common Misconceptions', schema: MisconceptionInput,
+  naturalKey: (r) => r.publicId, searchFields: ['title', 'description', 'publicId'],
+  keyField: 'publicId', versionField: 'currentVersion', semverField: 'semver', softDeleteField: 'deletedAt',
+  getDelegate: (c: Client) => (c as PrismaService).misconception,
+  toData: (r) => ({ subjectCode: r.subjectCode, topicCode: r.topicCode, subtopicCode: r.subtopicCode, category: r.category, sequenceNumber: r.sequenceNumber, title: r.title, description: r.description, whyItHappens: nn(r.whyItHappens), correction: nn(r.correction), status: r.status }),
+};
+
+// ── References (existing ReferenceBook; key publicId, active=isActive) ───────────
+const ReferenceInput = z.object({
+  publicId,
+  title: z.string().trim().min(1).max(500),
+  authors: z.array(z.string().trim().max(200)).max(50).default([]),
+  edition: z.string().trim().max(50).nullable().optional(),
+  publisher: z.string().trim().max(255).nullable().optional(),
+  publicationYear: z.coerce.number().int().min(1800).max(2100).nullable().optional(),
+  isbn13: z.string().trim().length(13).nullable().optional(),
+  isbn10: z.string().trim().length(10).nullable().optional(),
+  subjectArea: z.string().trim().max(100).nullable().optional(),
+  coverImageUrl: z.string().trim().url().max(1000).nullable().optional(),
+  description: z.string().trim().nullable().optional(),
+});
+const referenceCfg: SyncConfig<z.infer<typeof ReferenceInput>> = {
+  kind: 'references', entityType: 'reference', label: 'References', schema: ReferenceInput,
+  naturalKey: (r) => r.publicId, searchFields: ['title', 'publisher', 'publicId'],
+  keyField: 'publicId', activeField: 'isActive',
+  getDelegate: (c: Client) => (c as PrismaService).referenceBook,
+  toData: (r) => ({ title: r.title, authors: r.authors, edition: nn(r.edition), publisher: nn(r.publisher), publicationYear: nn(r.publicationYear), isbn13: nn(r.isbn13), isbn10: nn(r.isbn10), subjectArea: nn(r.subjectArea), coverImageUrl: nn(r.coverImageUrl), description: nn(r.description) }),
+};
+
+// ── Mock Exam Templates (existing ExamTemplate; key code, active=isActive) ──────
+const ExamTemplateInput = z.object({
+  code: z.string().trim().toUpperCase().min(2).max(50),
+  name: z.string().trim().min(2).max(160),
+  description: z.string().trim().max(2000).nullable().optional(),
+  kind: z.enum(['full_board', 'subject', 'custom', 'adaptive', 'ai_generated']),
+  durationMinutes: z.coerce.number().int().min(1).max(600),
+  passingScore: z.coerce.number().min(0).max(100).default(70),
+  randomizeQuestions: z.boolean().default(true),
+  randomizeChoices: z.boolean().default(true),
+  composition: z.array(z.object({
+    subjectId: z.string().uuid(),
+    count: z.coerce.number().int().min(1).max(500),
+    difficultyLevelId: z.string().uuid().optional(),
+    weightPercent: z.coerce.number().min(0).max(100).optional(),
+  })).min(1),
+});
+const examTemplateCfg: SyncConfig<z.infer<typeof ExamTemplateInput>> = {
+  kind: 'mock-exam-templates', entityType: 'exam_template', label: 'Mock Exam Templates', schema: ExamTemplateInput,
+  naturalKey: (r) => r.code, searchFields: ['code', 'name'],
+  keyField: 'code', activeField: 'isActive',
+  getDelegate: (c: Client) => (c as PrismaService).examTemplate,
+  toData: (r) => ({ name: r.name, description: nn(r.description), kind: r.kind, durationMinutes: r.durationMinutes, passingScore: r.passingScore, randomizeQuestions: r.randomizeQuestions, randomizeChoices: r.randomizeChoices, composition: r.composition as unknown, totalQuestions: r.composition.reduce((s, e) => s + e.count, 0) }),
+};
+
 export const SYNC_CONFIGS: Record<string, SyncConfig> = {
   concepts: erase(conceptCfg),
   'engineering-notes': erase(engineeringNoteCfg),
@@ -144,6 +213,9 @@ export const SYNC_CONFIGS: Record<string, SyncConfig> = {
   'review-notes': erase(reviewNoteCfg),
   flashcards: erase(flashcardCfg),
   'tutor-prompts': erase(tutorPromptCfg),
+  misconceptions: erase(misconceptionCfg),
+  references: erase(referenceCfg),
+  'mock-exam-templates': erase(examTemplateCfg),
 };
 
 export const SYNC_KINDS = Object.keys(SYNC_CONFIGS);

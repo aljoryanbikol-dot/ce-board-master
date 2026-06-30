@@ -980,6 +980,12 @@ model ReferenceBook {
   coverImageUrl   String?  @map("cover_image_url")
   description     String?
   isActive        Boolean  @default(true) @map("is_active")
+  publicId        String?  @unique @db.VarChar(80) @map("public_id")
+  version         Int      @default(1) @db.SmallInt
+  semver          String   @default("1.0.0") @db.VarChar(20)
+  contentHash     String?  @db.VarChar(64) @map("content_hash")
+  sourceProject   String?  @db.VarChar(120) @map("source_project")
+  syncedAt        DateTime? @map("synced_at") @db.Timestamptz
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -1668,6 +1674,9 @@ model Misconception {
   semver             String          @default("1.0.0") @db.VarChar(20)
   sourceDocumentId   String?         @db.Uuid @map("source_document_id")
   createdBy          String?         @db.Uuid @map("created_by")
+  contentHash        String?         @db.VarChar(64) @map("content_hash")
+  sourceProject      String?         @db.VarChar(120) @map("source_project")
+  syncedAt           DateTime?       @map("synced_at") @db.Timestamptz
   createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt          DateTime?       @map("deleted_at") @db.Timestamptz
@@ -2264,6 +2273,11 @@ model ExamTemplate {
   composition     Json
   isActive        Boolean  @default(true) @map("is_active")
   createdBy       String?  @db.Uuid @map("created_by")
+  version         Int      @default(1) @db.SmallInt
+  semver          String   @default("1.0.0") @db.VarChar(20)
+  contentHash     String?  @db.VarChar(64) @map("content_hash")
+  sourceProject   String?  @db.VarChar(120) @map("source_project")
+  syncedAt        DateTime? @map("synced_at") @db.Timestamptz
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
