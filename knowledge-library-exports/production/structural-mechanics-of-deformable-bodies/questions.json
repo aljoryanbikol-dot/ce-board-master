@@ -1,0 +1,98 @@
+{
+  "items": [
+    {
+      "questionCode": "STRUC-MDB-0001",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-MDB",
+      "subtopicCode": "STRUC-MDB-AXIAL",
+      "difficultyCode": "Intermediate",
+      "stemText": "A steel rod 2 m long has a diameter of 20 mm and carries an axial tensile load of 40 kN. Using $E = 200$ GPa for steel, determine the total elongation of the rod.",
+      "choices": [
+        { "letter": "A", "text": "1.27 mm" },
+        { "letter": "B", "text": "2.55 mm" },
+        { "letter": "C", "text": "0.64 mm" },
+        { "letter": "D", "text": "0.32 mm" }
+      ],
+      "correctChoice": "A",
+      "explanationText": "Cross-sectional area: $A = \\dfrac{\\pi d^2}{4} = \\dfrac{\\pi(20)^2}{4} = 314.16$ mm².\n\nAxial stress: $\\sigma = P/A = 40{,}000/314.16 = 127.32$ MPa (not asked directly, but useful as a check that the stress is well within the elastic range of steel).\n\nElongation: $\\delta = \\dfrac{PL}{AE} = \\dfrac{(40{,}000)(2000)}{(314.16)(200{,}000)} = \\dfrac{80{,}000{,}000}{62{,}831{,}853} = 1.27$ mm.",
+      "bloomLevel": "apply",
+      "questionType": "computation",
+      "estSolvingTimeSec": 150,
+      "learningObjective": "LO-STR-002-001-001",
+      "keywords": ["axial stress", "axial deformation", "elongation"],
+      "formulaSlugs": ["normal-axial-stress", "axial-deformation"],
+      "intelligence": {
+        "engineeringNotes": "Working entirely in N and mm gives stress directly in MPa (since 1 N/mm² = 1 MPa) without an extra conversion step — convert kN to N and GPa to MPa (×1000) before substituting, not after.",
+        "commonMistakes": [
+          "Using A = πd² (forgetting the /4), which understates the elongation by a factor of 4",
+          "Leaving E in GPa instead of converting to MPa, which overstates the elongation by a factor of 1000",
+          "Reporting the stress (127.3 MPa) instead of the elongation that the question actually asks for"
+        ]
+      },
+      "status": "draft"
+    },
+    {
+      "questionCode": "STRUC-MDB-0002",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-MDB",
+      "subtopicCode": "STRUC-MDB-TORS",
+      "difficultyCode": "Intermediate",
+      "stemText": "A solid circular steel shaft 50 mm in diameter transmits a torque of 1.2 kN·m. Determine the maximum shear stress developed in the shaft.",
+      "choices": [
+        { "letter": "A", "text": "48.9 MPa" },
+        { "letter": "B", "text": "97.8 MPa" },
+        { "letter": "C", "text": "24.4 MPa" },
+        { "letter": "D", "text": "12.2 MPa" }
+      ],
+      "correctChoice": "A",
+      "explanationText": "Using the closed-form solid-shaft formula: $\\tau_{max} = \\dfrac{16T}{\\pi d^3} = \\dfrac{16(1{,}200{,}000)}{\\pi(50)^3} = \\dfrac{19{,}200{,}000}{392{,}699} = 48.9$ MPa.\n\nCheck via $\\tau = Tr/J$: $J = \\pi d^4/32 = \\pi(50)^4/32 = 613{,}592$ mm⁴, $r = 25$ mm, $\\tau_{max} = (1{,}200{,}000)(25)/613{,}592 = 48.9$ MPa — consistent.",
+      "bloomLevel": "apply",
+      "questionType": "computation",
+      "estSolvingTimeSec": 150,
+      "learningObjective": "LO-STR-002-002-001",
+      "keywords": ["torsion", "shear stress", "circular shaft"],
+      "formulaSlugs": ["torsional-shear-stress", "polar-moment-of-inertia-solid-circular-section"],
+      "intelligence": {
+        "engineeringNotes": "T = 1.2 kN·m must be converted to N·mm (×1000×1000 = ×1,000,000 → 1,200,000 N·mm) to stay consistent with d in mm and get stress directly in MPa.",
+        "commonMistakes": [
+          "Using r = d = 50 mm instead of r = d/2 = 25 mm, which doubles the computed stress to 97.8 MPa",
+          "Forgetting to convert kN·m to N·mm",
+          "Using the rectangular-section inertia formula bh³/12 instead of the circular polar formula πd⁴/32"
+        ]
+      },
+      "status": "draft"
+    },
+    {
+      "questionCode": "STRUC-MDB-0003",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-MDB",
+      "subtopicCode": "STRUC-MDB-FLEX",
+      "difficultyCode": "Intermediate",
+      "stemText": "A rectangular timber beam 150 mm wide and 300 mm deep is subjected to a maximum bending moment of 45 kN·m. Determine the maximum bending stress in the beam.",
+      "choices": [
+        { "letter": "A", "text": "20 MPa" },
+        { "letter": "B", "text": "40 MPa" },
+        { "letter": "C", "text": "80 MPa" },
+        { "letter": "D", "text": "5 MPa" }
+      ],
+      "correctChoice": "A",
+      "explanationText": "Moment of inertia: $I = \\dfrac{bh^3}{12} = \\dfrac{(150)(300)^3}{12} = 337{,}500{,}000$ mm⁴.\n\nDistance to extreme fiber: $c = h/2 = 150$ mm.\n\nMaximum bending stress: $\\sigma = \\dfrac{Mc}{I} = \\dfrac{(45{,}000{,}000)(150)}{337{,}500{,}000} = 20$ MPa.",
+      "bloomLevel": "apply",
+      "questionType": "computation",
+      "estSolvingTimeSec": 150,
+      "learningObjective": "LO-STR-002-003-001",
+      "keywords": ["flexure", "bending stress", "rectangular section"],
+      "formulaSlugs": ["moment-of-inertia-rectangular-section", "flexure-formula-bending-stress"],
+      "intelligence": {
+        "engineeringNotes": "For a symmetric rectangular section, c = h/2 because the neutral axis passes through the centroid at mid-depth; this is not true for unsymmetric sections (e.g., a T-section), where the tension- and compression-side c values differ.",
+        "commonMistakes": [
+          "Using c = h (the full depth) instead of c = h/2, which doubles the computed stress to 40 MPa",
+          "Swapping b and h in the moment-of-inertia formula (using hb³/12 instead of bh³/12), which gives 80 MPa here",
+          "Using I = bh³/3 instead of bh³/12, which understates the stress to 5 MPa"
+        ]
+      },
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

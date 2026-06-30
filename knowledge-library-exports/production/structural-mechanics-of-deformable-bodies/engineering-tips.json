@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "publicId": "ET-STRUC-MDB-001",
+      "subjectCode": "STRUC",
+      "category": "exam-strategy",
+      "title": "Convert to one consistent unit system before substituting numbers",
+      "tip": "Mixed units (kN with mm, GPa with MPa, mm with m) are the single most common source of wrong answers in stress/deformation problems. Before substituting into any formula, convert everything to N and mm (giving stress directly in MPa, since 1 N/mm² = 1 MPa) or everything to SI base units (N and m, giving stress in Pa). Pick one system per problem and do not mix them mid-calculation.",
+      "tags": ["unit conversion", "strategy"],
+      "status": "draft"
+    },
+    {
+      "publicId": "ET-STRUC-MDB-002",
+      "subjectCode": "STRUC",
+      "category": "exam-strategy",
+      "title": "Sketch the section and label c, d, or r before applying a stress formula",
+      "tip": "A large fraction of errors in torsion and flexure problems come from confusing the diameter with the radius, or the full depth with the distance to the neutral axis. Before substituting into tau = Tr/J or sigma = Mc/I, sketch the cross-section and explicitly label which dimension is r (or c) — half the diameter for a circular shaft, half the depth for a symmetric rectangular section.",
+      "tags": ["torsion", "flexure", "strategy"],
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

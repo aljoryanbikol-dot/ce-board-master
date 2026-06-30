@@ -1,0 +1,71 @@
+{
+  "items": [
+    {
+      "publicId": "FC-STRUC-MDB-001",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-MDB",
+      "front": "Formula for normal (axial) stress?",
+      "back": "σ = P/A",
+      "hint": "Force divided by area",
+      "difficulty": "easy",
+      "tags": ["axial"],
+      "status": "draft"
+    },
+    {
+      "publicId": "FC-STRUC-MDB-002",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-MDB",
+      "front": "Formula for axial deformation of a prismatic member?",
+      "back": "δ = PL/(AE)",
+      "hint": "Derived from Hooke's law: σ=Eε and ε=δ/L",
+      "difficulty": "easy",
+      "tags": ["axial"],
+      "status": "draft"
+    },
+    {
+      "publicId": "FC-STRUC-MDB-003",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-MDB",
+      "front": "Polar moment of inertia of a solid circular shaft of diameter d?",
+      "back": "J = πd⁴/32",
+      "hint": "Compare to the rectangular I = bh³/12 — different shape, different formula",
+      "difficulty": "easy",
+      "tags": ["torsion"],
+      "status": "draft"
+    },
+    {
+      "publicId": "FC-STRUC-MDB-004",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-MDB",
+      "front": "Maximum torsional shear stress in a solid circular shaft, in terms of T and d only?",
+      "back": "τ_max = 16T/(πd³)",
+      "hint": "Substitute r=d/2 and J=πd⁴/32 into τ=Tr/J and simplify",
+      "difficulty": "medium",
+      "tags": ["torsion"],
+      "status": "draft"
+    },
+    {
+      "publicId": "FC-STRUC-MDB-005",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-MDB",
+      "front": "Units of the angle of twist φ = TL/(JG) when T, L, J, G are in consistent SI units?",
+      "back": "Radians (must multiply by 180/π to convert to degrees)",
+      "hint": "This is the single most common units mistake in torsion problems",
+      "difficulty": "medium",
+      "tags": ["torsion"],
+      "status": "draft"
+    },
+    {
+      "publicId": "FC-STRUC-MDB-006",
+      "subjectCode": "STRUC",
+      "topicCode": "STRUC-MDB",
+      "front": "Flexure formula for bending stress, and what does c represent?",
+      "back": "σ = Mc/I; c is the distance from the neutral axis to the extreme (outer) fiber",
+      "hint": "For a symmetric rectangular section, c = h/2",
+      "difficulty": "easy",
+      "tags": ["flexure"],
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

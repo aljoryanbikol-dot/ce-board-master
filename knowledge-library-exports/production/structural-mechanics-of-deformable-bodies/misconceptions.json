@@ -1,0 +1,44 @@
+{
+  "items": [
+    {
+      "publicId": "MIS-STRUC-MDB-AXIAL-001",
+      "subjectCode": "STR",
+      "topicCode": "MDB",
+      "subtopicCode": "AXI",
+      "category": "GEN",
+      "sequenceNumber": 1,
+      "title": "Using the diameter instead of the radius (or vice versa) in area calculations",
+      "description": "Students substitute the diameter directly where the radius is required (or apply A = πd²/4 but then separately also halve it), producing an area that is off by a factor of 4 from the correct value and propagating a 4x error into stress and deformation answers.",
+      "whyItHappens": "The area formula A = πd²/4 already accounts for the radius internally (since r = d/2 means πr² = πd²/4); students sometimes additionally try to convert d to r before using this form, double-applying the conversion.",
+      "correction": "Use A = πd²/4 directly with the diameter, OR A = πr² directly with the radius — never mix the two forms in the same calculation.",
+      "status": "draft"
+    },
+    {
+      "publicId": "MIS-STRUC-MDB-TORS-001",
+      "subjectCode": "STR",
+      "topicCode": "MDB",
+      "subtopicCode": "TOR",
+      "category": "GEN",
+      "sequenceNumber": 1,
+      "title": "Forgetting that the angle of twist formula gives radians, not degrees",
+      "description": "Students compute phi = TL/(JG) and report the raw numerical result as degrees, when the formula (with T, L, J, G in consistent SI units) gives the answer in radians. This produces an answer that looks numerically small and is roughly 57 times too small if reported as degrees directly.",
+      "whyItHappens": "Most other angle quantities encountered in earlier coursework (geometry, surveying) are conventionally reported in degrees, so the radian result feels unfinished and gets reported as-is.",
+      "correction": "Multiply the radian result by 180/π (≈57.2958) to convert to degrees before reporting, unless the problem explicitly asks for radians.",
+      "status": "draft"
+    },
+    {
+      "publicId": "MIS-STRUC-MDB-FLEX-001",
+      "subjectCode": "STR",
+      "topicCode": "MDB",
+      "subtopicCode": "FLE",
+      "category": "GEN",
+      "sequenceNumber": 1,
+      "title": "Swapping b and h in the rectangular moment of inertia formula",
+      "description": "For I = bh³/12, students sometimes cube the width b instead of the depth h (i.e., compute hb³/12 when bending is about the horizontal centroidal axis), giving a moment of inertia that is incorrect by a factor of (h/b)² or (b/h)² and a correspondingly wrong bending stress.",
+      "whyItHappens": "The formula's b and h are easy to transpose because both are just 'the two cross-section dimensions' without an obvious visual cue once the numbers are substituted; the convention is that h (cubed) is always the dimension parallel to the direction of bending.",
+      "correction": "Before substituting, explicitly identify which dimension is parallel to the bending direction (that one is h, and gets cubed) and which is perpendicular (that one is b).",
+      "status": "draft"
+    }
+  ],
+  "atomic": true
+}

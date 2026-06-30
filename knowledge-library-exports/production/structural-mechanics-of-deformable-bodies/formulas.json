@@ -1,0 +1,115 @@
+{
+  "formulas": [
+    {
+      "name": "Normal (Axial) Stress",
+      "subjectCode": "STRUC",
+      "expressionText": "sigma = P / A",
+      "expressionLatex": "\\sigma = \\frac{P}{A}",
+      "variables": [
+        { "symbol": "σ", "name": "Normal (axial) stress", "unit": "MPa" },
+        { "symbol": "P", "name": "Internal axial force", "unit": "N" },
+        { "symbol": "A", "name": "Cross-sectional area", "unit": "mm²" }
+      ],
+      "unitsSystem": "SI",
+      "assumptions": ["Axial load is applied along the centroidal axis", "Stress is uniformly distributed across the section"],
+      "limitations": "Valid only away from points of load application or abrupt section change (Saint-Venant's principle); does not apply to eccentric loading.",
+      "typicalApplications": ["axially loaded rods, bars, and cables", "truss members"]
+    },
+    {
+      "name": "Axial Deformation",
+      "subjectCode": "STRUC",
+      "expressionText": "delta = P * L / (A * E)",
+      "expressionLatex": "\\delta = \\frac{PL}{AE}",
+      "variables": [
+        { "symbol": "δ", "name": "Axial elongation or shortening", "unit": "mm" },
+        { "symbol": "P", "name": "Internal axial force", "unit": "N" },
+        { "symbol": "L", "name": "Original length", "unit": "mm" },
+        { "symbol": "A", "name": "Cross-sectional area", "unit": "mm²" },
+        { "symbol": "E", "name": "Modulus of elasticity", "unit": "MPa" }
+      ],
+      "unitsSystem": "SI",
+      "derivation": "From Hooke's Law, sigma = E*epsilon, and epsilon = delta/L, and sigma = P/A. Substituting: P/A = E*(delta/L), solving for delta gives delta = PL/(AE).",
+      "assumptions": ["Material is linear-elastic (stress within the proportional limit)", "Constant P, A, and E along the length (or summed/integrated piecewise if not)"],
+      "limitations": "Not valid beyond the proportional limit; for varying P, A, or E, integrate delta = ∫P(x)dx/(A(x)E(x)) over the length.",
+      "typicalApplications": ["elongation of rods and cables", "thermal/mechanical deformation compatibility problems"]
+    },
+    {
+      "name": "Polar Moment of Inertia — Solid Circular Section",
+      "subjectCode": "STRUC",
+      "expressionText": "J = pi * d^4 / 32",
+      "expressionLatex": "J = \\frac{\\pi d^4}{32}",
+      "variables": [
+        { "symbol": "J", "name": "Polar moment of inertia", "unit": "mm⁴" },
+        { "symbol": "d", "name": "Shaft diameter", "unit": "mm" }
+      ],
+      "unitsSystem": "SI",
+      "limitations": "Solid circular cross-section only. For a hollow circular shaft, J = pi*(d_o^4 - d_i^4)/32.",
+      "typicalApplications": ["torsion of circular shafts"]
+    },
+    {
+      "name": "Torsional Shear Stress",
+      "subjectCode": "STRUC",
+      "expressionText": "tau = T * r / J",
+      "expressionLatex": "\\tau = \\frac{Tr}{J}",
+      "variables": [
+        { "symbol": "τ", "name": "Shear stress at radius r", "unit": "MPa" },
+        { "symbol": "T", "name": "Internal torque", "unit": "N·mm" },
+        { "symbol": "r", "name": "Radial distance from the centroidal axis", "unit": "mm" },
+        { "symbol": "J", "name": "Polar moment of inertia", "unit": "mm⁴" }
+      ],
+      "unitsSystem": "SI",
+      "derivation": "Maximum shear stress occurs at the outer fiber, r = d/2, giving the equivalent closed form tau_max = 16T/(pi*d^3) for a solid circular shaft.",
+      "assumptions": ["Material is linear-elastic", "Circular cross-section so plane sections remain plane and shear strain varies linearly with radius"],
+      "limitations": "Applies to circular (solid or hollow) sections only; non-circular sections warp and require different theory.",
+      "typicalApplications": ["power transmission shafts", "drive shafts"]
+    },
+    {
+      "name": "Angle of Twist",
+      "subjectCode": "STRUC",
+      "expressionText": "phi = T * L / (J * G)",
+      "expressionLatex": "\\phi = \\frac{TL}{JG}",
+      "variables": [
+        { "symbol": "φ", "name": "Angle of twist", "unit": "rad" },
+        { "symbol": "T", "name": "Internal torque", "unit": "N·mm" },
+        { "symbol": "L", "name": "Shaft length", "unit": "mm" },
+        { "symbol": "J", "name": "Polar moment of inertia", "unit": "mm⁴" },
+        { "symbol": "G", "name": "Shear modulus of elasticity", "unit": "MPa" }
+      ],
+      "unitsSystem": "SI",
+      "assumptions": ["Constant T, J, and G along the shaft length (or summed piecewise if not)", "Material is linear-elastic"],
+      "limitations": "Result is in radians; multiply by 180/pi to convert to degrees.",
+      "typicalApplications": ["shaft stiffness design", "torsional compatibility in statically indeterminate shafts"]
+    },
+    {
+      "name": "Moment of Inertia — Rectangular Section",
+      "subjectCode": "STRUC",
+      "expressionText": "I = b * h^3 / 12",
+      "expressionLatex": "I = \\frac{bh^3}{12}",
+      "variables": [
+        { "symbol": "I", "name": "Moment of inertia about the centroidal axis", "unit": "mm⁴" },
+        { "symbol": "b", "name": "Section width (perpendicular to the bending axis)", "unit": "mm" },
+        { "symbol": "h", "name": "Section depth (parallel to the bending axis)", "unit": "mm" }
+      ],
+      "unitsSystem": "SI",
+      "limitations": "Solid rectangular cross-section about its centroidal (horizontal) axis only. h is the dimension parallel to the direction of bending.",
+      "typicalApplications": ["timber beams", "rectangular concrete and steel sections"]
+    },
+    {
+      "name": "Flexure Formula (Bending Stress)",
+      "subjectCode": "STRUC",
+      "expressionText": "sigma = M * c / I",
+      "expressionLatex": "\\sigma = \\frac{Mc}{I}",
+      "variables": [
+        { "symbol": "σ", "name": "Bending (flexural) stress at distance c from the neutral axis", "unit": "MPa" },
+        { "symbol": "M", "name": "Internal bending moment", "unit": "N·mm" },
+        { "symbol": "c", "name": "Distance from the neutral axis to the outer fiber", "unit": "mm" },
+        { "symbol": "I", "name": "Moment of inertia of the section about the neutral axis", "unit": "mm⁴" }
+      ],
+      "unitsSystem": "SI",
+      "derivation": "From the linear strain assumption (plane sections remain plane) and Hooke's Law, stress varies linearly with distance from the neutral axis; equilibrium of the internal moment with the stress distribution gives sigma = My/I, maximized at y = c.",
+      "assumptions": ["Plane sections remain plane and perpendicular to the neutral axis (Euler-Bernoulli beam theory)", "Material is linear-elastic", "Beam is straight and prismatic; deflections are small"],
+      "limitations": "Neutral axis must pass through the section centroid (true for pure bending of homogeneous, symmetric sections only).",
+      "typicalApplications": ["maximum bending stress in beams", "beam section design and capacity checks"]
+    }
+  ]
+}
