@@ -34,10 +34,21 @@ export function ExamRunner({ examId }: { examId: string }) {
     (async () => {
       try {
         await examsApi.begin(examId);
-        const data = await examsApi.questions(examId) as ExamData;
+        // /exams/:id/questions returns a presented-question ARRAY; /exams/:id has the meta.
+        const [meta, qsRaw] = await Promise.all([
+          examsApi.get(examId).catch(() => null),
+          examsApi.questions(examId),
+        ]);
         if (!active) return;
-        setExam(data);
-        setRemaining((data.durationMinutes ?? 60) * 60);
+        const arr = Array.isArray(qsRaw) ? qsRaw : ((qsRaw as { questions?: unknown[] })?.questions ?? []);
+        const questions: ExamQuestion[] = (arr as Array<Record<string, unknown>>).map((q) => ({
+          examQuestionId: String(q.examQuestionId),
+          stemText: String(q.stemText ?? ''),
+          choices: ((q.choices as Array<{ key?: string; letter?: string; text: string }>) ?? []).map((c) => ({ key: c.key ?? c.letter ?? '', text: c.text })),
+        }));
+        const durationMinutes = Number((meta as { durationMinutes?: number } | null)?.durationMinutes ?? (qsRaw as { durationMinutes?: number })?.durationMinutes ?? 60);
+        setExam({ examId, durationMinutes, questions });
+        setRemaining(durationMinutes * 60);
       } catch (err) {
         toast.fromError(err, 'Could not load the exam');
         router.replace('/exams');
