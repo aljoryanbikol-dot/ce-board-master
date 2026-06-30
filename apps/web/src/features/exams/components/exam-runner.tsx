@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Flag, ChevronLeft, ChevronRight, Clock, Send } from 'lucide-react';
 import { examsApi } from '../api/exams-api';
 import { PageHeader } from '@/components/common/page-header';
+import { MathText } from '@/components/common/math-text';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -95,7 +96,7 @@ export function ExamRunner({ examId }: { examId: string }) {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-start justify-between gap-4">
-              <p className="font-medium">{q.stemText}</p>
+              <p className="font-medium"><MathText text={q.stemText} /></p>
               <Button variant="ghost" size="icon" aria-label="Flag question" onClick={() => toggleFlag(q.examQuestionId)}>
                 <Flag className={cn('h-4 w-4', flags.has(q.examQuestionId) && 'fill-warning text-warning')} />
               </Button>
@@ -106,7 +107,7 @@ export function ExamRunner({ examId }: { examId: string }) {
                 return (
                   <button key={c.key} onClick={() => choose(q.examQuestionId, c.key)} className={cn('flex w-full items-center gap-3 rounded-lg border p-3 text-left text-sm transition-colors', isSelected ? 'border-primary bg-primary/5' : 'hover:bg-secondary')}>
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-xs">{c.key}</span>
-                    <span>{c.text}</span>
+                    <span><MathText text={c.text} /></span>
                   </button>
                 );
               })}

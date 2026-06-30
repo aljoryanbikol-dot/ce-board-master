@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Bot, Send, User, BookText } from 'lucide-react';
 import { tutorApi, type TutorAnswer } from '../api/tutor-api';
 import { PageHeader } from '@/components/common/page-header';
+import { MarkdownMath } from '@/components/common/markdown-math';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -73,7 +74,9 @@ export function TutorChat() {
                     {turn.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                   </div>
                   <div className={cn('max-w-[80%] rounded-lg px-4 py-2.5 text-sm', turn.role === 'user' ? 'bg-primary text-primary-foreground' : 'border bg-card')}>
-                    <p className="whitespace-pre-wrap">{turn.content}</p>
+                    {turn.role === 'assistant'
+                      ? <MarkdownMath text={turn.content} />
+                      : <p className="whitespace-pre-wrap">{turn.content}</p>}
                     {turn.citations && turn.citations.length > 0 ? (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {turn.citations.map((c, ci) => (

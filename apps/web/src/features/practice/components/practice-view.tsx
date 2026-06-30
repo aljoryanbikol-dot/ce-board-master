@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Dumbbell, ArrowRight, Check, X } from 'lucide-react';
 import { studentApi } from '@/features/student/api/student-api';
 import { PageHeader } from '@/components/common/page-header';
+import { MathText } from '@/components/common/math-text';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -112,7 +113,7 @@ export function PracticeView() {
       <PageHeader title="Practice" description={`Question ${idx + 1} of ${session.questions.length}`} />
       <Card>
         <CardContent className="p-6">
-          <p className="font-medium">{q.stemText}</p>
+          <p className="font-medium"><MathText text={q.stemText} /></p>
           <div className="mt-5 space-y-2.5">
             {q.choices.map((c) => {
               const isSelected = selected === c.key;
@@ -132,7 +133,7 @@ export function PracticeView() {
                   )}
                 >
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-xs">{c.key}</span>
-                  <span className="flex-1">{c.text}</span>
+                  <span className="flex-1"><MathText text={c.text} /></span>
                   {isCorrect ? <Check className="h-4 w-4 text-success" /> : null}
                   {isWrong ? <X className="h-4 w-4 text-destructive" /> : null}
                 </button>
@@ -143,7 +144,7 @@ export function PracticeView() {
           {result ? (
             <div className="mt-5 rounded-lg border bg-muted/40 p-4">
               <Badge variant={result.correct ? 'success' : 'destructive'}>{result.correct ? 'Correct' : 'Incorrect'}</Badge>
-              {result.explanationText ? <p className="mt-2 text-sm text-muted-foreground">{result.explanationText}</p> : null}
+              {result.explanationText ? <p className="mt-2 text-sm text-muted-foreground"><MathText text={result.explanationText} /></p> : null}
             </div>
           ) : null}
 
