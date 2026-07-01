@@ -92,7 +92,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       } else if (typeof response === 'object' && response !== null) {
         const res = response as Record<string, unknown>;
         message = (res['message'] as string) || message;
-        errorCode = (res['error'] as string) || errorCode;
+        // Application exceptions across the codebase set `code` (e.g.
+        // AUTH_ERROR_CODES, SUBSCRIPTION_ERROR_CODES); `error` is Nest's own
+        // default HttpException shape (e.g. "Forbidden"). Prefer the
+        // application-specific code so the frontend can key off it exactly
+        // (e.g. toast.fromError checking FREE_TIER_LIMIT_REACHED).
+        errorCode = (res['code'] as string) || (res['error'] as string) || errorCode;
         field = res['field'] as string | undefined;
       }
     }

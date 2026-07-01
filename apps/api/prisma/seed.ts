@@ -15,7 +15,7 @@
  * - Subjects (8 PRC CE board subjects)
  * - Engineering codes (7 codes)
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -215,6 +215,11 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'exam.take', 'exam.review', 'exam.results',
     'tutor.use', 'tutor.history', 'tutor.coaching',
     'questions.read',
+    // Free users must be able to view plans and their own subscription to
+    // ever see the upgrade path — was missing since Sprint 2.5, found while
+    // verifying Sprint 3.3 (blocked GET /plans and /subscriptions/me for
+    // every free_user with a 403).
+    'subscriptions.read',
   ],
 };
 
@@ -411,13 +416,13 @@ async function main(): Promise<void> {
       update: {
         name: plan.name, priceMinor: plan.priceMinor, durationDays: plan.durationDays,
         fixedExpiryDate: plan.fixedExpiryDate, trialDays: plan.trialDays,
-        sortOrder: plan.sortOrder, features: plan.features, limits: plan.limits, isActive: true,
+        sortOrder: plan.sortOrder, features: plan.features, limits: (plan.limits ?? Prisma.JsonNull) as Prisma.InputJsonValue, isActive: true,
       },
       create: {
         name: plan.name, slug: plan.slug, tier: plan.tier, interval: plan.interval,
         priceMinor: plan.priceMinor, currency: 'PHP', durationDays: plan.durationDays,
         fixedExpiryDate: plan.fixedExpiryDate, trialDays: plan.trialDays, features: plan.features,
-        limits: plan.limits, sortOrder: plan.sortOrder, isActive: true,
+        limits: (plan.limits ?? Prisma.JsonNull) as Prisma.InputJsonValue, sortOrder: plan.sortOrder, isActive: true,
       },
     });
   }
