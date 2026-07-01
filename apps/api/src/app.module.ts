@@ -52,6 +52,7 @@ import { ExamsModule } from './exams/exams.module';
 import { AITutorModule } from './ai-tutor/ai-tutor.module';
 import { TaxonomyModule } from './taxonomy/taxonomy.module';
 import { ContentSyncModule } from './content-sync/content-sync.module';
+import { PlatformAnalyticsModule } from './platform-analytics/platform-analytics.module';
 
 // Global Guards
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -114,6 +115,7 @@ import type { AppEnvironment } from './config/configuration';
     AITutorModule,       // AI Tutor & Intelligent Learning Assistant (Sprint 3.3)
     TaxonomyModule,      // Admin taxonomy CRUD — subjects/topics/subtopics (Phase 1 CMS)
     ContentSyncModule,   // Generic Knowledge Library sync engine (type-aware models)
+    PlatformAnalyticsModule, // Admin platform-wide analytics — users, revenue, usage (Sprint 3.5)
 
     // Sprint 2.2+ modules registered here as implemented:
     // UsersModule,

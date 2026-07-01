@@ -96,6 +96,7 @@ export const adminNav: NavSection[] = [
     items: [
       { label: 'Billing', href: '/admin/billing', icon: CreditCard },
       { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+      { label: 'Platform Analytics', href: '/admin/platform-analytics', icon: Gauge },
       { label: 'Audit Logs', href: '/admin/audit-logs', icon: ScrollText },
       { label: 'System Settings', href: '/admin/settings', icon: SlidersHorizontal },
     ],
