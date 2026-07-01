@@ -35,7 +35,7 @@ export default function AnalyticsPage() {
   return (
     <div>
       <PageHeader title="Analytics" description="Trends and deeper cuts on your performance." />
-      <QueryBoundary isLoading={stats.isLoading} isError={stats.isError} isEmpty={series.length === 0} emptyTitle="No analytics yet" emptyDescription="Keep practicing — your performance trends will populate here.">
+      <QueryBoundary isLoading={stats.isLoading} isError={stats.isError} error={stats.error} isEmpty={series.length === 0} emptyTitle="No analytics yet" emptyDescription="Keep practicing — your performance trends will populate here.">
         <div className="grid gap-4 sm:grid-cols-3">
           <StatCard label="All-time accuracy" value={formatPercent((accSpeed.data?.allTime.accuracy ?? 0) * 100)} icon={Target} accent="primary" />
           <StatCard label="Last 7 days accuracy" value={formatPercent((accSpeed.data?.last7Days.accuracy ?? 0) * 100)} icon={Zap} accent="success" />

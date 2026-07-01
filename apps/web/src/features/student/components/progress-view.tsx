@@ -24,7 +24,7 @@ export function ProgressView() {
   return (
     <div>
       <PageHeader title="Progress" description="Mastery by topic, weak areas, and your trajectory." />
-      <QueryBoundary isLoading={mastery.isLoading} isError={mastery.isError} isEmpty={masteryData.length === 0} emptyTitle="No progress data yet" emptyDescription="Answer some practice questions to start building your mastery profile.">
+      <QueryBoundary isLoading={mastery.isLoading} isError={mastery.isError} error={mastery.error} isEmpty={masteryData.length === 0} emptyTitle="No progress data yet" emptyDescription="Answer some practice questions to start building your mastery profile.">
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-2">
             <CardHeader><CardTitle>Mastery by topic</CardTitle></CardHeader>
