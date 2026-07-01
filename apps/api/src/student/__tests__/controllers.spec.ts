@@ -43,8 +43,9 @@ describe('Student controllers (delegation + ownership)', () => {
     const progress = { masteryForUser: vi.fn().mockResolvedValue([]), weakTopics: vi.fn().mockResolvedValue([]), strongTopics: vi.fn().mockResolvedValue([]), getKnowledgeGaps: vi.fn().mockResolvedValue([]) };
     const stats = { progress: vi.fn().mockResolvedValue({}), accuracyAndSpeed: vi.fn().mockResolvedValue({}), distribution: vi.fn().mockResolvedValue({}), masteryHeatmap: vi.fn().mockResolvedValue([]), performanceHistory: vi.fn().mockResolvedValue([]) };
     const path = { getActive: vi.fn().mockResolvedValue(null), generate: vi.fn().mockResolvedValue({}) };
+    const featureAccess = { assertAnalyticsAccess: vi.fn().mockResolvedValue(undefined) };
     let c: ProgressController;
-    beforeEach(() => { vi.clearAllMocks(); c = new ProgressController(progress as never, stats as never, path as never); });
+    beforeEach(() => { vi.clearAllMocks(); c = new ProgressController(progress as never, stats as never, path as never, featureAccess as never); });
 
     it('mastery delegates', async () => { await c.mastery(user); expect(progress.masteryForUser).toHaveBeenCalledWith('u-1'); });
     it('weak/strong/gaps delegate', async () => { await c.weak(user); await c.strong(user); await c.gaps(user); expect(progress.weakTopics).toHaveBeenCalled(); expect(progress.strongTopics).toHaveBeenCalled(); expect(progress.getKnowledgeGaps).toHaveBeenCalledWith('u-1'); });

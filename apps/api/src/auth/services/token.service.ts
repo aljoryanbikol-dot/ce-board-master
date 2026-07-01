@@ -52,6 +52,7 @@ import type {
   JwtAccessPayload,
   TokenPair,
 } from '../auth.types';
+import { SubscriptionTierResolverService } from './subscription-tier-resolver.service';
 import type { ITokenService } from '../auth.interface';
 import type { AppEnvironment } from '../../config/configuration';
 
@@ -64,6 +65,7 @@ export class TokenService implements ITokenService {
     private readonly prisma: PrismaService,
     private readonly authConfig: AuthConfig,
     private readonly configService: ConfigService<AppEnvironment>,
+    private readonly tierResolver: SubscriptionTierResolverService,
   ) {}
 
   // ── Token Pair Generation ───────────────────────────────────────────────────
@@ -422,14 +424,10 @@ export class TokenService implements ITokenService {
     return { rawToken, tokenHash };
   }
 
-  /**
-   * Resolve subscription tier for the given user.
-   * Placeholder until SubscriptionsModule is implemented in Sprint 2.5.
-   * Returns 'free' as the safe default.
-   */
+  /** Resolve subscription tier for the given user from their live subscription (Sprint 3.3). */
   private async resolveSubscriptionTier(
-    _userId: string,
+    userId: string,
   ): Promise<'free' | 'basic' | 'pro'> {
-    return 'free';
+    return this.tierResolver.resolve(userId);
   }
 }

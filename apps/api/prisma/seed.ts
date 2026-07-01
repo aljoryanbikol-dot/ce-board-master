@@ -344,31 +344,84 @@ async function main(): Promise<void> {
   }
   console.log(`  ✅ ${codes.length} engineering codes seeded\n`);
 
-  // ── Sprint 2.5: Subscription Plans ──────────────────────────────────────────
+  // ── Sprint 3.3: Subscription Plans (production pricing) ─────────────────────
   console.log('💳 Seeding subscription plans...');
+
+  // The next scheduled PRC Civil Engineering Board Exam date. Board Pass
+  // buyers all expire on this single date regardless of purchase date.
+  // ⚠️ PLACEHOLDER — set from the official PRC exam calendar and update every
+  // cycle via `PATCH /plans/:id { fixedExpiryDate }` (or re-run this seed) —
+  // no code change needed either way.
+  const NEXT_BOARD_EXAM_DATE = new Date('2026-11-15T00:00:00+08:00');
+
   const PLANS = [
-    { name: 'Free',          slug: 'free',          tier: 'free' as const, interval: 'free'      as const, priceMinor: 0,      durationDays: null, trialDays: 0,  sortOrder: 0,  features: ['100 practice questions', 'Basic analytics'] },
-    { name: 'Pro Monthly',   slug: 'pro_monthly',   tier: 'pro'  as const, interval: 'monthly'   as const, priceMinor: 49900,  durationDays: 30,   trialDays: 7,  sortOrder: 10, features: ['Unlimited questions', 'AI tutor', 'Mock exams', 'Full analytics'] },
-    { name: 'Pro Quarterly', slug: 'pro_quarterly', tier: 'pro'  as const, interval: 'quarterly' as const, priceMinor: 134900, durationDays: 90,   trialDays: 7,  sortOrder: 20, features: ['Unlimited questions', 'AI tutor', 'Mock exams', 'Full analytics', 'Save 10%'] },
-    { name: 'Pro Annual',    slug: 'pro_annual',    tier: 'pro'  as const, interval: 'annual'    as const, priceMinor: 479900, durationDays: 365,  trialDays: 14, sortOrder: 30, features: ['Unlimited questions', 'AI tutor', 'Mock exams', 'Full analytics', 'Save 20%', 'Priority support'] },
-    { name: 'Lifetime',      slug: 'lifetime',      tier: 'pro'  as const, interval: 'lifetime'  as const, priceMinor: 999900, durationDays: null, trialDays: 0,  sortOrder: 40, features: ['Everything in Pro Annual', 'One-time payment', 'Lifetime updates'] },
+    {
+      name: 'Free', slug: 'free', tier: 'free' as const, interval: 'free' as const,
+      priceMinor: 0, durationDays: null, fixedExpiryDate: null, trialDays: 0, sortOrder: 0,
+      features: [
+        '100 questions total', '1 Mock Exam', 'AI Tutor for those 100 questions',
+        'Formula Library preview', 'Flashcards preview', 'Review Notes preview',
+        'Engineering diagrams',
+      ],
+      limits: { maxQuestions: 100, maxMockExams: 1, contentPreviewItems: 10 },
+    },
+    {
+      name: 'Premium Monthly', slug: 'premium_monthly', tier: 'pro' as const, interval: 'monthly' as const,
+      priceMinor: 19900, durationDays: 30, fixedExpiryDate: null, trialDays: 0, sortOrder: 10,
+      features: [
+        'Unlimited questions', 'Unlimited practice', 'Unlimited Mock Exams', 'Unlimited AI Tutor',
+        'Unlimited Formula Library', 'Unlimited Flashcards', 'Unlimited Review Notes',
+        'Unlimited Engineering Diagrams', 'Progress Analytics', 'Future content updates',
+      ],
+      limits: null,
+    },
+    {
+      name: 'Premium Quarterly', slug: 'premium_quarterly', tier: 'pro' as const, interval: 'quarterly' as const,
+      priceMinor: 49900, durationDays: 90, fixedExpiryDate: null, trialDays: 0, sortOrder: 20,
+      features: [
+        'Unlimited questions', 'Unlimited practice', 'Unlimited Mock Exams', 'Unlimited AI Tutor',
+        'Unlimited Formula Library', 'Unlimited Flashcards', 'Unlimited Review Notes',
+        'Unlimited Engineering Diagrams', 'Progress Analytics', 'Future content updates',
+      ],
+      limits: null,
+    },
+    {
+      name: 'Board Pass', slug: 'premium_board_pass', tier: 'pro' as const, interval: 'custom' as const,
+      priceMinor: 99900, durationDays: null, fixedExpiryDate: NEXT_BOARD_EXAM_DATE, trialDays: 0, sortOrder: 30,
+      features: [
+        'Unlimited questions', 'Unlimited practice', 'Unlimited Mock Exams', 'Unlimited AI Tutor',
+        'Unlimited Formula Library', 'Unlimited Flashcards', 'Unlimited Review Notes',
+        'Unlimited Engineering Diagrams', 'Progress Analytics', 'Future content updates',
+        'Valid until the next PRC CE Board Exam',
+      ],
+      limits: null,
+    },
   ];
+
+  // Retire the old Sprint 2.5 pricing (pro_monthly/pro_quarterly/pro_annual/lifetime)
+  // rather than delete — existing subscriptions still reference these rows.
+  await prisma.subscriptionPlan.updateMany({
+    where: { slug: { in: ['pro_monthly', 'pro_quarterly', 'pro_annual', 'lifetime'] } },
+    data: { isActive: false },
+  });
 
   for (const plan of PLANS) {
     await prisma.subscriptionPlan.upsert({
       where:  { slug: plan.slug },
       update: {
-        name: plan.name, priceMinor: plan.priceMinor, trialDays: plan.trialDays,
-        sortOrder: plan.sortOrder, features: plan.features, isActive: true,
+        name: plan.name, priceMinor: plan.priceMinor, durationDays: plan.durationDays,
+        fixedExpiryDate: plan.fixedExpiryDate, trialDays: plan.trialDays,
+        sortOrder: plan.sortOrder, features: plan.features, limits: plan.limits, isActive: true,
       },
       create: {
         name: plan.name, slug: plan.slug, tier: plan.tier, interval: plan.interval,
         priceMinor: plan.priceMinor, currency: 'PHP', durationDays: plan.durationDays,
-        trialDays: plan.trialDays, features: plan.features, sortOrder: plan.sortOrder, isActive: true,
+        fixedExpiryDate: plan.fixedExpiryDate, trialDays: plan.trialDays, features: plan.features,
+        limits: plan.limits, sortOrder: plan.sortOrder, isActive: true,
       },
     });
   }
-  console.log(`  ✅ ${PLANS.length} subscription plans seeded\n`);
+  console.log(`  ✅ ${PLANS.length} subscription plans seeded (4 old Sprint 2.5 plans retired)\n`);
 
   console.log('✅ CE Board Master seed complete!\n');
   console.log('📝 Sprint 2.3 RBAC seeded:');

@@ -42,11 +42,14 @@ const mockCacheService = {
   del:       vi.fn().mockResolvedValue(undefined),
 };
 
+const mockTierResolver = { resolve: vi.fn().mockResolvedValue('free') };
+
 const buildService = () =>
   new AuthService(
     mockPrisma as any,
     mockPasswordService as any,
     mockCacheService as any,
+    mockTierResolver as any,
   );
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

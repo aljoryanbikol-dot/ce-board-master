@@ -1173,6 +1173,9 @@ enum PlanInterval {
   quarterly
   annual
   lifetime
+  /// Fixed end date shared by every purchaser (e.g. "valid until the next
+  /// board exam") — see SubscriptionPlan.fixedExpiryDate.
+  custom
 
   @@map("plan_interval")
 }
@@ -1254,10 +1257,20 @@ model SubscriptionPlan {
   /// Price in the smallest currency unit (centavos for PHP). 0 for free.
   priceMinor    Int          @map("price_minor")
   currency      String       @default("PHP") @db.Char(3)
-  /// Duration in days. Null for lifetime/free.
+  /// Duration in days. Null for lifetime/free/custom.
   durationDays  Int?         @map("duration_days")
+  /// For interval=custom: every purchase expires on this exact date
+  /// (e.g. "Board Pass — valid until the next scheduled PRC CE board exam"),
+  /// regardless of purchase date. Admin-editable via PATCH /plans/:id —
+  /// update this each exam cycle, no code change needed.
+  fixedExpiryDate DateTime?  @map("fixed_expiry_date") @db.Timestamptz
   trialDays     Int          @default(0) @map("trial_days")
   features      Json         @default("[]")
+  /// Free-tier usage caps, e.g. {"maxQuestions":100,"maxMockExams":1}.
+  /// Null/empty for unlimited (paid) plans. Read by FeatureAccessService —
+  /// this is the single configurable source of truth for Free plan limits,
+  /// no env vars or hardcoded constants.
+  limits        Json?
   isActive      Boolean      @default(true) @map("is_active")
   sortOrder     Int          @default(0) @map("sort_order") @db.SmallInt
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz

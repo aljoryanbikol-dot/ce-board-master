@@ -88,7 +88,7 @@ export class SubscriptionService {
                           : SubscriptionStatus.trialing,
         trialEndsAt:      trialEnds,
         currentPeriodStart: isFree || trialEnds ? now : null,
-        currentPeriodEnd:   isFree ? this.computePeriodEnd(now, plan.interval, plan.durationDays)
+        currentPeriodEnd:   isFree ? this.computePeriodEnd(now, plan.interval, plan.durationDays, plan.fixedExpiryDate)
                             : trialEnds ?? null,
         autoRenew:        !isFree,
         providerType:     isFree ? null : (dto.provider as PaymentProviderType) ?? null,
@@ -186,7 +186,7 @@ export class SubscriptionService {
     const plan = await this.planService.getRawById(sub.planId);
 
     const start = sub.currentPeriodEnd && sub.currentPeriodEnd > new Date() ? sub.currentPeriodEnd : new Date();
-    const end = this.computePeriodEnd(start, plan.interval, plan.durationDays);
+    const end = this.computePeriodEnd(start, plan.interval, plan.durationDays, plan.fixedExpiryDate);
 
     await this.prisma.subscription.update({
       where: { id: subscriptionId },
@@ -294,7 +294,7 @@ export class SubscriptionService {
     const plan = await this.planService.getRawById(planId);
     const now = new Date();
     const start = now;
-    const end = this.computePeriodEnd(start, plan.interval, plan.durationDays);
+    const end = this.computePeriodEnd(start, plan.interval, plan.durationDays, plan.fixedExpiryDate);
 
     await this.prisma.subscription.update({
       where: { id: subscriptionId },
@@ -332,7 +332,7 @@ export class SubscriptionService {
   }
 
   async getById(requester: AuthenticatedUser, id: string) {
-    const sub = await this.prisma.subscription.findUnique({ where: { id } });
+    const sub = await this.prisma.subscription.findUnique({ where: { id }, include: { plan: { select: { name: true, tier: true } } } });
     if (!sub) throw SubscriptionErrors.subscriptionNotFound();
     if (requester.id !== sub.userId && requester.role !== ROLE_SLUGS.SUPER_ADMIN) {
       const hasAdmin = await this.userRoleService.hasPermission(requester.id, PERM.SUBSCRIPTIONS_MANAGE);
@@ -350,10 +350,19 @@ export class SubscriptionService {
         status: { in: [SubscriptionStatus.trialing, SubscriptionStatus.active, SubscriptionStatus.past_due, SubscriptionStatus.grace] },
       },
       orderBy: { createdAt: 'desc' },
+      include: { plan: { select: { name: true, tier: true } } },
     });
   }
 
-  private computePeriodEnd(start: Date, interval: PlanInterval, durationDays: number | null): Date | null {
+  /**
+   * interval='custom' plans (e.g. Board Pass — "valid until the next
+   * scheduled PRC CE board exam") ignore durationDays entirely: every
+   * purchase expires on the same admin-set fixedExpiryDate, regardless of
+   * purchase date. Update that date each exam cycle via PATCH /plans/:id —
+   * no code change needed.
+   */
+  private computePeriodEnd(start: Date, interval: PlanInterval, durationDays: number | null, fixedExpiryDate?: Date | null): Date | null {
+    if (interval === PlanInterval.custom) return fixedExpiryDate ?? null;
     if (interval === PlanInterval.lifetime || interval === PlanInterval.free) return null;
     if (durationDays) return this.addDays(start, durationDays);
     const map: Record<string, number> = { monthly: 30, quarterly: 90, annual: 365 };
@@ -382,6 +391,7 @@ export class SubscriptionService {
     id: string; userId: string; planId: string; status: string;
     currentPeriodStart: Date | null; currentPeriodEnd: Date | null; trialEndsAt: Date | null;
     cancelAtPeriodEnd: boolean; autoRenew: boolean; version: number;
+    plan?: { name: string; tier: string } | null;
   }) {
     return {
       id: s.id, userId: s.userId, planId: s.planId, status: s.status,
@@ -389,6 +399,7 @@ export class SubscriptionService {
       currentPeriodEnd: s.currentPeriodEnd?.toISOString() ?? null,
       trialEndsAt: s.trialEndsAt?.toISOString() ?? null,
       cancelAtPeriodEnd: s.cancelAtPeriodEnd, autoRenew: s.autoRenew, version: s.version,
+      planName: s.plan?.name ?? null, tier: s.plan?.tier ?? null,
     };
   }
 }

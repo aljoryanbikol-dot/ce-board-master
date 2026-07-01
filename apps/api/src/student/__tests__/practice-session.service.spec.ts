@@ -27,8 +27,9 @@ function mocks() {
   const recommendations = { recommend: vi.fn().mockResolvedValue([{ questionId: 'q-9' }]) };
   const events = { emit: vi.fn() };
   const diagrams = { resolveMany: vi.fn().mockResolvedValue(new Map()), resolveOne: vi.fn().mockResolvedValue(null), publicIdFor: vi.fn() };
-  const svc = new PracticeSessionService(prisma as never, cache as never, progress as never, achievements as never, recommendations as never, events as never, diagrams as never);
-  return { prisma, cache, progress, achievements, recommendations, events, diagrams, tx, svc };
+  const featureAccess = { enforcePracticeQuota: vi.fn().mockResolvedValue(undefined) };
+  const svc = new PracticeSessionService(prisma as never, cache as never, progress as never, achievements as never, recommendations as never, events as never, diagrams as never, featureAccess as never);
+  return { prisma, cache, progress, achievements, recommendations, events, diagrams, featureAccess, tx, svc };
 }
 
 describe('PracticeSessionService', () => {

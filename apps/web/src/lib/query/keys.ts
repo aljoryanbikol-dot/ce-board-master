@@ -46,5 +46,5 @@ export const queryKeys = {
     analytics: ['admin', 'analytics'] as const,
     settings: ['admin', 'settings'] as const,
   },
-  billing: { subscription: ['billing', 'subscription'] as const, invoices: ['billing', 'invoices'] as const },
+  billing: { subscription: ['billing', 'subscription'] as const, invoices: ['billing', 'invoices'] as const, plans: ['billing', 'plans'] as const },
 } as const;

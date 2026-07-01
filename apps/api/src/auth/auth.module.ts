@@ -34,6 +34,7 @@ import { TokenService }     from './services/token.service';
 import { EmailService }     from './services/email.service';
 import { LockoutService }   from './services/lockout.service';
 import { MfaService }       from './services/mfa.service';
+import { SubscriptionTierResolverService } from './services/subscription-tier-resolver.service';
 
 // Domain flow services (Sprint 2.2)
 import { RegisterService }           from './services/register.service';
@@ -56,6 +57,7 @@ import { RefreshTokenGuard } from './guards/refresh-token.guard';
 import { LocalAuthGuard }    from './guards/local-auth.guard';
 import { GoogleAuthGuard }   from './guards/google-auth.guard';
 import { RolesGuard }        from './guards/roles.guard';
+import { SubscriptionGuard } from './guards/subscription.guard';
 
 // Controller
 import { AuthController } from './auth.controller';
@@ -91,6 +93,7 @@ import type { AppEnvironment } from '../config/configuration';
     EmailService,      // BullMQ email enqueue
     LockoutService,    // Redis sliding-window lockout
     MfaService,        // TOTP + backup codes
+    SubscriptionTierResolverService, // resolves the live subscription tier for JWT claims
 
     // ── Domain flow services (Sprint 2.2) ─────────────────────────────────────
     RegisterService,           // POST /auth/register
@@ -109,11 +112,11 @@ import type { AppEnvironment } from '../config/configuration';
     // When unconfigured the /auth/google routes are simply inactive.
     {
       provide: GoogleStrategy,
-      useFactory: (config: ConfigService<AppEnvironment>, prisma: PrismaService) => {
+      useFactory: (config: ConfigService<AppEnvironment>, prisma: PrismaService, tierResolver: SubscriptionTierResolverService) => {
         const clientId = config.get('GOOGLE_CLIENT_ID', { infer: true });
-        return clientId ? new GoogleStrategy(config, prisma) : null;
+        return clientId ? new GoogleStrategy(config, prisma, tierResolver) : null;
       },
-      inject: [ConfigService, PrismaService],
+      inject: [ConfigService, PrismaService, SubscriptionTierResolverService],
     },
 
     // ── Guards ────────────────────────────────────────────────────────────────
@@ -122,6 +125,7 @@ import type { AppEnvironment } from '../config/configuration';
     LocalAuthGuard,
     GoogleAuthGuard,
     RolesGuard,
+    SubscriptionGuard,
   ],
 
   exports: [
@@ -130,11 +134,13 @@ import type { AppEnvironment } from '../config/configuration';
     PasswordService,
     TokenService,
     MfaService,
+    SubscriptionTierResolverService,
 
     // Guards for explicit @UseGuards() decoration
     JwtAuthGuard,
     RefreshTokenGuard,
     RolesGuard,
+    SubscriptionGuard,
 
     // JwtModule exports JwtService for external use
     JwtModule,

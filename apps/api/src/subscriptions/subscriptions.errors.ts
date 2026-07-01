@@ -29,4 +29,10 @@ export const SubscriptionErrors = {
     new ConflictException({ code: E.VERSION_CONFLICT, message: 'This subscription was modified concurrently. Reload and retry.' }),
   duplicatePlanSlug: (slug: string) =>
     new ConflictException({ code: E.DUPLICATE_PLAN_SLUG, message: `A plan with slug '${slug}' already exists.` }),
+  freeTierLimitReached: (feature: string, limit: number) =>
+    new ForbiddenException({
+      code: E.FREE_TIER_LIMIT_REACHED,
+      message: `You've reached the Free plan limit for ${feature} (${limit}). Upgrade to Premium for unlimited access.`,
+      feature, limit, upgradeRequired: true,
+    }),
 } as const;

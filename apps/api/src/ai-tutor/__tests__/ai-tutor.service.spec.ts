@@ -32,8 +32,9 @@ function mocks() {
   const events = { emit: vi.fn() };
   const prisma = { question: { findFirst: vi.fn().mockResolvedValue(null) } };
   const diagrams = { resolveMany: vi.fn().mockResolvedValue(new Map()), resolveOne: vi.fn().mockResolvedValue(null), publicIdFor: vi.fn() };
-  const svc = new AITutorService(conversations as never, context as never, explanation as never, solution as never, hints as never, formulas as never, grounding as never, provider as never, events as never, prisma as never, diagrams as never);
-  return { conversations, context, explanation, solution, hints, formulas, grounding, provider, events, prisma, diagrams, svc };
+  const featureAccess = { enforceAiTutorQuota: vi.fn().mockResolvedValue(undefined) };
+  const svc = new AITutorService(conversations as never, context as never, explanation as never, solution as never, hints as never, formulas as never, grounding as never, provider as never, events as never, prisma as never, diagrams as never, featureAccess as never);
+  return { conversations, context, explanation, solution, hints, formulas, grounding, provider, events, prisma, diagrams, featureAccess, svc };
 }
 
 describe('AITutorService (chat hub)', () => {

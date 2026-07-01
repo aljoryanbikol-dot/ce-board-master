@@ -31,6 +31,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, type Profile, type VerifyCallback } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
+import { SubscriptionTierResolverService } from '../services/subscription-tier-resolver.service';
 import { GOOGLE_STRATEGY } from '../auth.constants';
 import type { AuthenticatedUser } from '../auth.types';
 import type { AppEnvironment } from '../../config/configuration';
@@ -42,6 +43,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, GOOGLE_STRATEGY) 
   constructor(
     private readonly config: ConfigService<AppEnvironment>,
     private readonly prisma: PrismaService,
+    private readonly tierResolver: SubscriptionTierResolverService,
   ) {
     super({
       clientID: config.get('GOOGLE_CLIENT_ID', { infer: true }),
@@ -135,7 +137,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, GOOGLE_STRATEGY) 
         id: u.id,
         email: u.email,
         role: u.role.slug,
-        subscriptionTier: 'free', // Sprint 2.5: resolve from subscriptions
+        subscriptionTier: await this.tierResolver.resolve(u.id),
       };
     }
 
@@ -159,7 +161,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, GOOGLE_STRATEGY) 
         id: existingUser.id,
         email: existingUser.email,
         role: existingUser.role.slug,
-        subscriptionTier: 'free',
+        subscriptionTier: await this.tierResolver.resolve(existingUser.id),
       };
     }
 

@@ -30,6 +30,7 @@ import { ExamsModule } from '../exams/exams.module';
 import { AiModule } from '../ai/ai.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { QuestionsModule } from '../questions/questions.module';
+import { SubscriptionModule } from '../subscriptions/subscriptions.module';
 // Controllers
 import { AITutorController } from './controllers/ai-tutor.controller';
 import { ConversationController } from './controllers/conversation.controller';
@@ -55,7 +56,7 @@ import { TUTOR_PROVIDER } from './providers/tutor-provider.interface';
 import { DeterministicTutorProvider } from './providers/deterministic-tutor.provider';
 
 @Module({
-  imports: [AuthModule, RbacModule, StudentModule, ExamsModule, AiModule, KnowledgeModule, QuestionsModule],
+  imports: [AuthModule, RbacModule, StudentModule, ExamsModule, AiModule, KnowledgeModule, QuestionsModule, SubscriptionModule],
   controllers: [
     AITutorController,
     ConversationController,

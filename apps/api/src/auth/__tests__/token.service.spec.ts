@@ -49,6 +49,7 @@ const mockAuthConfig = {
 };
 
 const mockConfigService = { get: vi.fn() };
+const mockTierResolver = { resolve: vi.fn().mockResolvedValue('free') };
 
 const buildService = () =>
   new TokenService(
@@ -56,6 +57,7 @@ const buildService = () =>
     mockPrisma as any,
     mockAuthConfig as any,
     mockConfigService as any,
+    mockTierResolver as any,
   );
 
 const activeUser: AuthenticatedUser = {

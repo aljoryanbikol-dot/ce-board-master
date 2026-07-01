@@ -28,8 +28,9 @@ function mocks() {
   const result = { computeAndPersist: vi.fn().mockResolvedValue({ resultCode: 'CEBM-EX-XXXX', passed: true }) };
   const events = { emit: vi.fn() };
   const diagrams = { resolveMany: vi.fn().mockResolvedValue(new Map()), resolveOne: vi.fn().mockResolvedValue(null), publicIdFor: vi.fn() };
-  const svc = new ExamSessionService(prisma as never, cache as never, mockExam as never, timer, result as never, events as never, diagrams as never);
-  return { prisma, cache, mockExam, timer, result, events, diagrams, tx, svc };
+  const featureAccess = { enforceMockExamQuota: vi.fn().mockResolvedValue(undefined) };
+  const svc = new ExamSessionService(prisma as never, cache as never, mockExam as never, timer, result as never, events as never, diagrams as never, featureAccess as never);
+  return { prisma, cache, mockExam, timer, result, events, diagrams, featureAccess, tx, svc };
 }
 
 const inProgress = (over = {}) => ({ id: 'ex-1', userId: 'u-1', status: 'in_progress', durationMinutes: 60, startedAt: new Date(), expiresAt: new Date(Date.now() + 3.6e6), pausedAt: null, elapsedSeconds: 0, answeredCount: 0, ...over });

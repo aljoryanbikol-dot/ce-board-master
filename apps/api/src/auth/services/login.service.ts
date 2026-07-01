@@ -37,6 +37,7 @@ import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { LockoutService } from './lockout.service';
 import { MfaService } from './mfa.service';
+import { SubscriptionTierResolverService } from './subscription-tier-resolver.service';
 import { AUTH_ERROR_CODES } from '../auth.constants';
 import type { AuthenticatedUser, TokenPair } from '../auth.types';
 
@@ -67,6 +68,7 @@ export class LoginService {
     private readonly tokenService: TokenService,
     private readonly lockoutService: LockoutService,
     private readonly mfaService: MfaService,
+    private readonly tierResolver: SubscriptionTierResolverService,
   ) {}
 
   /**
@@ -203,7 +205,7 @@ export class LoginService {
       id: user.id,
       email: user.email,
       role: user.role.slug,
-      subscriptionTier: 'free', // Sprint 2.5: resolve from subscriptions table
+      subscriptionTier: await this.tierResolver.resolve(user.id),
     };
 
     // ── 8. Issue token pair ───────────────────────────────────────────────────

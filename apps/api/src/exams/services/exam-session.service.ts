@@ -18,6 +18,7 @@ import { MockExamService } from './mock-exam.service';
 import { ExamTimerService } from './exam-timer.service';
 import { ExamResultService } from './exam-result.service';
 import { QuestionDiagramLookupService } from '../../questions/services/question-diagram-lookup.service';
+import { FeatureAccessService } from '../../subscriptions/services/feature-access.service';
 import { ExamErrors } from '../errors/exam.errors';
 import { EVENTS, CACHE_KEYS } from '../../common/constants';
 import { EXAM_LIMITS } from '../constants/exam.constants';
@@ -34,10 +35,12 @@ export class ExamSessionService {
     private readonly result: ExamResultService,
     private readonly eventEmitter: EventEmitter2,
     private readonly diagrams: QuestionDiagramLookupService,
+    private readonly featureAccess: FeatureAccessService,
   ) {}
 
   // ── Start ───────────────────────────────────────────────────────────────────
   async start(userId: string, dto: StartExamDto) {
+    await this.featureAccess.enforceMockExamQuota(userId);
     const config = await this.resolveConfig(userId, dto);
 
     const built = await this.mockExam.buildQuestions({ kind: dto.kind, composition: config.composition, randomizeChoices: config.randomizeChoices });

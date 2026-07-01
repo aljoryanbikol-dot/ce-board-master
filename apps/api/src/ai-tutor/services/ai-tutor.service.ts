@@ -21,6 +21,7 @@ import { FormulaAssistantService } from './formula-assistant.service';
 import { GroundingValidationService } from './grounding-validation.service';
 import { PrismaService } from '../../database/prisma.service';
 import { QuestionDiagramLookupService } from '../../questions/services/question-diagram-lookup.service';
+import { FeatureAccessService } from '../../subscriptions/services/feature-access.service';
 import { TUTOR_PROVIDER, type TutorProvider } from '../providers/tutor-provider.interface';
 import { TutorErrors } from '../errors/tutor.errors';
 import { EVENTS } from '../../common/constants';
@@ -41,6 +42,7 @@ export class AITutorService {
     private readonly eventEmitter: EventEmitter2,
     private readonly prisma: PrismaService,
     private readonly diagrams: QuestionDiagramLookupService,
+    private readonly featureAccess: FeatureAccessService,
   ) {}
 
   /** Start a conversation, optionally with a first message answered immediately. */
@@ -55,6 +57,7 @@ export class AITutorService {
 
   /** The chat hub: handle one user message within a conversation. */
   async sendMessage(userId: string, conversationId: string, dto: SendMessageDto): Promise<TutorAnswer> {
+    await this.featureAccess.enforceAiTutorQuota(userId);
     const convo = await this.conversations.getOwned(userId, conversationId);
     if (convo.status === 'archived') throw TutorErrors.conversationArchived();
 

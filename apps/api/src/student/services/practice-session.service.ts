@@ -22,6 +22,7 @@ import { ProgressTrackingService } from './progress-tracking.service';
 import { AchievementService } from './achievement.service';
 import { QuestionRecommendationService } from './question-recommendation.service';
 import { QuestionDiagramLookupService } from '../../questions/services/question-diagram-lookup.service';
+import { FeatureAccessService } from '../../subscriptions/services/feature-access.service';
 import { StudentErrors } from '../errors/student.errors';
 import { EVENTS, CACHE_KEYS } from '../../common/constants';
 import { XP_RULES, PRACTICE_LIMITS } from '../constants/student.constants';
@@ -39,11 +40,13 @@ export class PracticeSessionService {
     private readonly recommendations: QuestionRecommendationService,
     private readonly eventEmitter: EventEmitter2,
     private readonly diagrams: QuestionDiagramLookupService,
+    private readonly featureAccess: FeatureAccessService,
   ) {}
 
   // ── Session lifecycle ─────────────────────────────────────────────────────────
 
   async start(userId: string, dto: StartPracticeDto) {
+    await this.featureAccess.enforcePracticeQuota(userId);
     const questionIds = await this.selectQuestionIds(userId, dto);
     if (questionIds.length === 0) throw StudentErrors.invalidPracticeTarget('No published questions match the chosen practice target.');
 

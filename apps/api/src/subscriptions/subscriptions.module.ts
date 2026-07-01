@@ -21,6 +21,7 @@ import {
 } from './controllers/subscription.controller';
 import { SubscriptionService } from './services/subscription.service';
 import { PlanService } from './services/plan.service';
+import { FeatureAccessService } from './services/feature-access.service';
 
 @Module({
   imports: [
@@ -29,7 +30,7 @@ import { PlanService } from './services/plan.service';
     forwardRef(() => PaymentModule),
   ],
   controllers: [SubscriptionController, PlanController],
-  providers: [SubscriptionService, PlanService],
-  exports: [SubscriptionService, PlanService],
+  providers: [SubscriptionService, PlanService, FeatureAccessService],
+  exports: [SubscriptionService, PlanService, FeatureAccessService],
 })
 export class SubscriptionModule {}

@@ -53,6 +53,8 @@ const mockMfaService = {
   verifyTotp:   vi.fn().mockResolvedValue(true),
 };
 
+const mockTierResolver = { resolve: vi.fn().mockResolvedValue('free') };
+
 const buildService = () =>
   new LoginService(
     mockPrisma as any,
@@ -60,6 +62,7 @@ const buildService = () =>
     mockTokenService as any,
     mockLockoutService as any,
     mockMfaService as any,
+    mockTierResolver as any,
   );
 
 const validInput = {

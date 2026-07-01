@@ -30,6 +30,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { CacheService, CacheNamespace, CacheTTL } from '../../cache/cache.service';
 import { PasswordService } from './password.service';
+import { SubscriptionTierResolverService } from './subscription-tier-resolver.service';
 import type { AuthenticatedUser } from '../auth.types';
 import type { IAuthService } from '../auth.interface';
 import { AUTH_ERROR_CODES } from '../auth.constants';
@@ -46,6 +47,7 @@ export class AuthService implements IAuthService {
     private readonly prisma: PrismaService,
     private readonly passwordService: PasswordService,
     private readonly cacheService: CacheService,
+    private readonly tierResolver: SubscriptionTierResolverService,
   ) {}
 
   // ── Credential Validation (for LocalStrategy) ──────────────────────────────
@@ -111,7 +113,7 @@ export class AuthService implements IAuthService {
       id: user.id,
       email: user.email,
       role: user.role.slug,
-      subscriptionTier: 'free', // Sprint 2.5: resolve from subscriptions table
+      subscriptionTier: await this.tierResolver.resolve(user.id),
     };
   }
 
@@ -150,7 +152,7 @@ export class AuthService implements IAuthService {
       id: user.id,
       email: user.email,
       role: user.role.slug,
-      subscriptionTier: 'free', // Sprint 2.5: enrich from subscriptions table
+      subscriptionTier: await this.tierResolver.resolve(user.id),
     };
   }
 
