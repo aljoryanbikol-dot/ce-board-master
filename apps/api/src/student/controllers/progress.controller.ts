@@ -61,12 +61,14 @@ export class ProgressController {
   @Get('learning-path')
   @ApiOperation({ summary: 'Active learning path' })
   async getPath(@CurrentUser() user: AuthenticatedUser) {
+    await this.featureAccess.assertAnalyticsAccess(user.id);
     return this.learningPath.getActive(user.id);
   }
 
   @Post('learning-path/generate')
   @ApiOperation({ summary: 'Generate a fresh personalized learning path' })
   async generatePath(@CurrentUser() user: AuthenticatedUser) {
+    await this.featureAccess.assertAnalyticsAccess(user.id);
     return this.learningPath.generate(user.id);
   }
 

@@ -12,6 +12,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { CacheService, CacheTTL } from '../../cache/cache.service';
 import { ProgressTrackingService } from './progress-tracking.service';
 import { AchievementService } from './achievement.service';
+import { FeatureAccessService } from '../../subscriptions/services/feature-access.service';
 import { CACHE_KEYS } from '../../common/constants';
 import type { DashboardSummary } from '../types/student.types';
 
@@ -23,10 +24,26 @@ export class StudentDashboardService {
     private readonly cache: CacheService,
     private readonly progress: ProgressTrackingService,
     private readonly achievements: AchievementService,
+    private readonly featureAccess: FeatureAccessService,
   ) {}
 
   async getDashboard(userId: string): Promise<DashboardSummary> {
-    return this.cache.remember(CACHE_KEYS.student.dashboard(userId), CacheTTL.STUDENT, () => this.build(userId));
+    const summary = await this.cache.remember(CACHE_KEYS.student.dashboard(userId), CacheTTL.STUDENT, () => this.build(userId));
+    // Progress Analytics is Premium-only (Free plan spec). The dashboard bundles
+    // core features (streak/XP/continue-learning, never gated) with
+    // analytics-shaped fields (weak/strong topics, accuracy, mastered count)
+    // that ARE gated everywhere else (ProgressController) — strip just those
+    // for free tier instead of blocking the whole dashboard, which would break
+    // the landing page every free user sees.
+    if (await this.featureAccess.isFreeTier(userId)) {
+      return {
+        ...summary,
+        weakTopics: [],
+        strongTopics: [],
+        progress: summary.progress ? { ...summary.progress, overallAccuracy: 0, topicsMastered: 0 } : summary.progress,
+      };
+    }
+    return summary;
   }
 
   private async build(userId: string): Promise<DashboardSummary> {

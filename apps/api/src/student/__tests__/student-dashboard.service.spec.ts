@@ -13,7 +13,8 @@ function mocks() {
   const cache = { remember: vi.fn((_k: string, _ttl: number, fn: () => unknown) => fn()) };
   const progress = { weakTopics: vi.fn().mockResolvedValue([{ topicId: 't-1' }]), strongTopics: vi.fn().mockResolvedValue([{ topicId: 't-2' }]) };
   const achievements = { levelProgress: vi.fn().mockReturnValue({ level: 2, xpIntoLevel: 50, xpForNextLevel: 300 }) };
-  return { prisma, cache, progress, achievements, svc: new StudentDashboardService(prisma as never, cache as never, progress as never, achievements as never) };
+  const featureAccess = { isFreeTier: vi.fn().mockResolvedValue(false) };
+  return { prisma, cache, progress, achievements, featureAccess, svc: new StudentDashboardService(prisma as never, cache as never, progress as never, achievements as never, featureAccess as never) };
 }
 
 describe('StudentDashboardService', () => {
@@ -43,5 +44,17 @@ describe('StudentDashboardService', () => {
   it('reports no active session when none exists', async () => {
     const dash = await m.svc.getDashboard('u-1');
     expect(dash.continueLearning).toBeNull();
+  });
+
+  it('strips analytics-shaped fields (weak/strong topics, accuracy, mastered count) for free tier', async () => {
+    m.featureAccess.isFreeTier.mockResolvedValueOnce(true);
+    const dash = await m.svc.getDashboard('u-1');
+    expect(dash.weakTopics).toEqual([]);
+    expect(dash.strongTopics).toEqual([]);
+    expect(dash.progress.overallAccuracy).toBe(0);
+    expect(dash.progress.topicsMastered).toBe(0);
+    // Core, non-analytics fields must still be present for free tier.
+    expect(dash.xp.totalXp).toBe(250);
+    expect(dash.streak.current).toBe(4);
   });
 });

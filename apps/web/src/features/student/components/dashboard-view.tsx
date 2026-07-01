@@ -1,5 +1,5 @@
 'use client';
-import { Flame, Target, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Flame, Target, CheckCircle2, AlertTriangle, ArrowRight, Trophy, Award } from 'lucide-react';
 import Link from 'next/link';
 import { useDashboard, useWeakTopics } from '../hooks/use-student';
 import { PageHeader } from '@/components/common/page-header';
@@ -63,6 +63,37 @@ export function DashboardView() {
                 <p className="text-sm text-muted-foreground">No weak topics flagged yet. Practice more to surface your gaps.</p>
               )}
               <Button asChild variant="outline" className="mt-4 w-full"><Link href="/progress">View full progress</Link></Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Trophy className="h-4 w-4" /> Level {d.xp?.level ?? 1}</CardTitle></CardHeader>
+            <CardContent>
+              <div className="flex items-end justify-between">
+                <span className="font-mono text-2xl font-semibold">{d.xp?.totalXp ?? 0} XP</span>
+                <span className="text-xs text-muted-foreground">{d.xp?.xpIntoLevel ?? 0} / {d.xp?.xpForNextLevel ?? 100} to next level</span>
+              </div>
+              <Progress value={d.xp?.xpForNextLevel ? Math.min(100, Math.round(((d.xp.xpIntoLevel ?? 0) / d.xp.xpForNextLevel) * 100)) : 0} className="mt-4" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Award className="h-4 w-4" /> Recent achievements</CardTitle></CardHeader>
+            <CardContent>
+              {d.recentAchievements && d.recentAchievements.length > 0 ? (
+                <ul className="space-y-3">
+                  {d.recentAchievements.map((a) => (
+                    <li key={a.code} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="truncate">{a.name}</span>
+                      <span className="text-xs text-muted-foreground">{new Date(a.earnedAt).toLocaleDateString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">Answer questions and complete sessions to earn your first badge.</p>
+              )}
             </CardContent>
           </Card>
         </div>

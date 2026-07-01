@@ -1,15 +1,22 @@
 'use client';
-import { useMastery, useWeakTopics, useProgress } from '../hooks/use-student';
+import { useMastery, useWeakTopics, useStrongTopics } from '../hooks/use-student';
+import { studentApi } from '../api/student-api';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/keys';
 import { PageHeader } from '@/components/common/page-header';
 import { QueryBoundary } from '@/components/common/query-boundary';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
 import { formatPercent } from '@/lib/utils';
+
+const SEVERITY_VARIANT: Record<string, 'destructive' | 'warning' | 'muted'> = { critical: 'destructive', moderate: 'warning', minor: 'muted' };
 
 export function ProgressView() {
   const mastery = useMastery();
   const weak = useWeakTopics();
-  const stats = useProgress();
+  const strong = useStrongTopics();
+  const gaps = useQuery({ queryKey: [...queryKeys.student.progress, 'knowledge-gaps'], queryFn: studentApi.knowledgeGaps });
 
   const masteryData = (mastery.data ?? []).slice(0, 8).map((t) => ({ name: t.topicId.slice(0, 6), accuracy: Math.round(t.accuracy * 100) }));
   const avg = masteryData.length ? Math.round(masteryData.reduce((s, m) => s + m.accuracy, 0) / masteryData.length) : 0;
@@ -48,19 +55,53 @@ export function ProgressView() {
           </Card>
         </div>
 
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader><CardTitle>Weak topics</CardTitle></CardHeader>
+            <CardContent>
+              {weak.data && weak.data.length > 0 ? (
+                <ul className="divide-y">
+                  {weak.data.map((t) => (
+                    <li key={t.topicId} className="flex items-center justify-between py-3 text-sm">
+                      <span className="text-muted-foreground">Topic {t.topicId.slice(0, 8)} · {t.tier}</span>
+                      <span className="font-mono font-medium text-warning">{formatPercent(t.accuracy * 100)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="text-sm text-muted-foreground">No weak topics — nice work.</p>}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Strong topics</CardTitle></CardHeader>
+            <CardContent>
+              {strong.data && strong.data.length > 0 ? (
+                <ul className="divide-y">
+                  {strong.data.map((t) => (
+                    <li key={t.topicId} className="flex items-center justify-between py-3 text-sm">
+                      <span className="text-muted-foreground">Topic {t.topicId.slice(0, 8)} · {t.tier}</span>
+                      <span className="font-mono font-medium text-success">{formatPercent(t.accuracy * 100)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="text-sm text-muted-foreground">Keep practicing to build up mastered topics.</p>}
+            </CardContent>
+          </Card>
+        </div>
+
         <Card className="mt-6">
-          <CardHeader><CardTitle>Weak topics</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Knowledge gaps</CardTitle></CardHeader>
           <CardContent>
-            {weak.data && weak.data.length > 0 ? (
+            {gaps.data && gaps.data.length > 0 ? (
               <ul className="divide-y">
-                {weak.data.map((t) => (
-                  <li key={t.topicId} className="flex items-center justify-between py-3 text-sm">
-                    <span className="text-muted-foreground">Topic {t.topicId.slice(0, 8)} · {t.tier}</span>
-                    <span className="font-mono font-medium text-warning">{formatPercent(t.accuracy * 100)}</span>
+                {gaps.data.map((g) => (
+                  <li key={g.topicId} className="flex items-center justify-between gap-3 py-3 text-sm">
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground">{g.recommendation ?? `Topic ${g.topicId.slice(0, 8)}`}</span>
+                    <Badge variant={SEVERITY_VARIANT[g.severity] ?? 'muted'}>{g.severity}</Badge>
                   </li>
                 ))}
               </ul>
-            ) : <p className="text-sm text-muted-foreground">No weak topics — nice work.</p>}
+            ) : <p className="text-sm text-muted-foreground">No detected knowledge gaps right now.</p>}
           </CardContent>
         </Card>
       </QueryBoundary>

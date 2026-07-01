@@ -6,8 +6,16 @@ import { QueryBoundary } from '@/components/common/query-boundary';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
+function monthRange(): { from: string; to: string } {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return { from, to };
+}
+
 export default function PlannerPage() {
-  const planner = usePlanner();
+  const { from, to } = monthRange();
+  const planner = usePlanner(from, to);
   const items = (planner.data as Array<{ id: string; title: string; date: string; status: string }> | undefined) ?? [];
   return (
     <div>
