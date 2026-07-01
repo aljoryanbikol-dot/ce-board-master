@@ -32,6 +32,7 @@ import { UserRoleService } from '../../rbac/services/user-role.service';
 import { PERM, ROLE_SLUGS } from '../../rbac/rbac.constants';
 import { EVENTS } from '../../common/constants';
 import { QuestionMapperService } from './question-mapper.service';
+import { QuestionDiagramLookupService } from './question-diagram-lookup.service';
 import { QuestionErrors } from '../questions.errors';
 import {
   QUESTION_CACHE_PREFIX,
@@ -59,6 +60,7 @@ export class QuestionService {
     private readonly userRoleService: UserRoleService,
     private readonly mapper: QuestionMapperService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly diagrams: QuestionDiagramLookupService,
   ) {}
 
   // ── Create ────────────────────────────────────────────────────────────────────
@@ -167,7 +169,8 @@ export class QuestionService {
     await this.assertCanRead(q.authorId, q.questionStatus, requester);
 
     const stage = await this.resolveReviewStage(id, q.questionStatus);
-    const detail = this.mapper.toDetail(q, stage);
+    const diagram = await this.diagrams.resolveOne(q.questionCode);
+    const detail = this.mapper.toDetail(q, stage, diagram);
     await this.cache.set(cacheKey, detail, QUESTION_CACHE_TTL);
     return detail;
   }

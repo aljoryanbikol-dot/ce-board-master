@@ -19,6 +19,8 @@ import { SolutionService } from './solution.service';
 import { HintService } from './hint.service';
 import { FormulaAssistantService } from './formula-assistant.service';
 import { GroundingValidationService } from './grounding-validation.service';
+import { PrismaService } from '../../database/prisma.service';
+import { QuestionDiagramLookupService } from '../../questions/services/question-diagram-lookup.service';
 import { TUTOR_PROVIDER, type TutorProvider } from '../providers/tutor-provider.interface';
 import { TutorErrors } from '../errors/tutor.errors';
 import { EVENTS } from '../../common/constants';
@@ -37,6 +39,8 @@ export class AITutorService {
     private readonly grounding: GroundingValidationService,
     @Inject(TUTOR_PROVIDER) private readonly provider: TutorProvider,
     private readonly eventEmitter: EventEmitter2,
+    private readonly prisma: PrismaService,
+    private readonly diagrams: QuestionDiagramLookupService,
   ) {}
 
   /** Start a conversation, optionally with a first message answered immediately. */
@@ -62,7 +66,7 @@ export class AITutorService {
     // Assemble context with session memory + recent turns.
     const recentTurns = await this.conversations.recentTurns(conversationId);
     const ctx = await this.context.build({
-      subjectId: convo.subjectId, topicId: convo.topicId,
+      subjectId: convo.subjectId, topicId: convo.topicId, queryText: dto.message,
       memorySummary: convo.memorySummary, recentTurns,
     });
 
@@ -92,6 +96,13 @@ export class AITutorService {
       // Free-form / followup / coaching → provider with assembled context.
       const out = await this.provider.respond({ intent, prompt: dto.message, context: ctx });
       content = out.content; followUps = out.followUps; citations = this.context.citationsFromContext(ctx); groundedInKb = citations.length > 0;
+    }
+
+    // If this turn discusses a specific question that has a linked diagram, show it —
+    // MarkdownMath (the chat renderer) already supports inline `![alt](url)` images.
+    if (dto.questionId && ['explain_question', 'step_solution', 'hint'].includes(intent)) {
+      const diagramMd = await this.diagramMarkdownFor(dto.questionId);
+      if (diagramMd) content = `${diagramMd}\n\n${content}`;
     }
 
     // Misconception detection: if the question/message brushes a known misconception, surface it.
@@ -134,6 +145,13 @@ export class AITutorService {
       const key = m.title.toLowerCase().split(/\W+/).filter((w) => w.length > 4);
       return key.some((w) => lower.includes(w));
     }) ?? null;
+  }
+
+  private async diagramMarkdownFor(questionId: string): Promise<string | null> {
+    const q = await this.prisma.question.findFirst({ where: { id: questionId, deletedAt: null }, select: { questionCode: true } });
+    if (!q) return null;
+    const diagram = await this.diagrams.resolveOne(q.questionCode);
+    return diagram ? `![${diagram.altText}](${diagram.imageUrl})` : null;
   }
 
   private renderSteps(steps: { order: number; text: string }[], finalAnswer: string): string {

@@ -30,8 +30,10 @@ function mocks() {
   const grounding = { validate: vi.fn().mockReturnValue({ ok: true, reasons: [] }) };
   const provider = { name: 'det', respond: vi.fn().mockResolvedValue({ content: 'free answer', followUps: ['fu'], tokensIn: 5, tokensOut: 10 }), solve: vi.fn() };
   const events = { emit: vi.fn() };
-  const svc = new AITutorService(conversations as never, context as never, explanation as never, solution as never, hints as never, formulas as never, grounding as never, provider as never, events as never);
-  return { conversations, context, explanation, solution, hints, formulas, grounding, provider, events, svc };
+  const prisma = { question: { findFirst: vi.fn().mockResolvedValue(null) } };
+  const diagrams = { resolveMany: vi.fn().mockResolvedValue(new Map()), resolveOne: vi.fn().mockResolvedValue(null), publicIdFor: vi.fn() };
+  const svc = new AITutorService(conversations as never, context as never, explanation as never, solution as never, hints as never, formulas as never, grounding as never, provider as never, events as never, prisma as never, diagrams as never);
+  return { conversations, context, explanation, solution, hints, formulas, grounding, provider, events, prisma, diagrams, svc };
 }
 
 describe('AITutorService (chat hub)', () => {
@@ -76,6 +78,18 @@ describe('AITutorService (chat hub)', () => {
     it('falls back to the provider for free-form questions', async () => {
       await m.svc.sendMessage('u-1', 'c-1', { message: 'general question', intent: 'ask_question' } as never);
       expect(m.provider.respond).toHaveBeenCalled();
+    });
+    it('prepends the linked diagram as a markdown image when the question has one', async () => {
+      m.prisma.question.findFirst.mockResolvedValue({ questionCode: 'Q-STR-1' });
+      m.diagrams.resolveOne.mockResolvedValue({ publicId: 'FIG.Q.STR.1', title: 'Frame', imageUrl: 'data:image/svg+xml;base64,AAAA', altText: 'Frame diagram', caption: null, description: null });
+      const r = await m.svc.sendMessage('u-1', 'c-1', { message: 'explain', intent: 'explain_question', questionId: 'q-1' } as never);
+      expect(m.diagrams.resolveOne).toHaveBeenCalledWith('Q-STR-1');
+      expect(r.content).toContain('![Frame diagram](data:image/svg+xml;base64,AAAA)');
+    });
+    it('does not touch content when the question has no linked diagram', async () => {
+      m.prisma.question.findFirst.mockResolvedValue({ questionCode: 'Q-STR-2' });
+      const r = await m.svc.sendMessage('u-1', 'c-1', { message: 'explain', intent: 'explain_question', questionId: 'q-1' } as never);
+      expect(r.content).toBe('expl');
     });
   });
 

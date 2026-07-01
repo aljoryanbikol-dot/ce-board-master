@@ -2,6 +2,7 @@
  * @file exam.types.ts
  * @module Exams/Types
  */
+import type { QuestionDiagramView } from '../../questions/types/questions.types';
 
 /** A single entry in an exam template's composition blueprint. */
 export interface CompositionEntry {
@@ -21,6 +22,7 @@ export interface PresentedQuestion {
   state: string;
   selectedChoice: string | null; // presented letter the student picked
   isBookmarked: boolean;
+  diagram: QuestionDiagramView | null;
 }
 
 export interface ExamTimerState {

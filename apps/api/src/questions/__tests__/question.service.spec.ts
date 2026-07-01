@@ -55,10 +55,11 @@ const mockPrisma = {
 const mockCache = { get: vi.fn().mockResolvedValue(null), set: vi.fn(), del: vi.fn(), invalidatePattern: vi.fn() };
 const mockUserRole = { hasPermission: vi.fn().mockResolvedValue(false) };
 const mockEvents = { emit: vi.fn() };
+const mockDiagrams = { resolveMany: vi.fn().mockResolvedValue(new Map()), resolveOne: vi.fn().mockResolvedValue(null), publicIdFor: vi.fn() };
 
 const build = () => new QuestionService(
   mockPrisma as never, mockCache as never, mockUserRole as never,
-  new QuestionMapperService(), mockEvents as never,
+  new QuestionMapperService(), mockEvents as never, mockDiagrams as never,
 );
 
 describe('QuestionService', () => {

@@ -15,7 +15,7 @@ function mocks() {
   };
   const prisma = {
     $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
-    question: { findFirst: vi.fn().mockResolvedValue(publishedQuestion), findMany: vi.fn().mockResolvedValue([{ id: 'q-1' }, { id: 'q-2' }]) },
+    question: { findFirst: vi.fn().mockResolvedValue(publishedQuestion), findMany: vi.fn().mockResolvedValue([{ id: 'q-1', questionCode: 'Q-1', choices: [] }, { id: 'q-2', questionCode: 'Q-2', choices: [] }]) },
     practiceSession: { findUnique: vi.fn(), create: vi.fn().mockResolvedValue({ id: 'sess-1', mode: 'subject', targetCount: 10 }), update: vi.fn().mockResolvedValue({ status: 'completed', answeredCount: 5, correctCount: 4 }), findMany: vi.fn().mockResolvedValue([]) },
     questionAttempt: { count: vi.fn().mockResolvedValue(0), aggregate: vi.fn().mockResolvedValue({ _count: { _all: 10 } }) },
     studentXp: { findUnique: vi.fn().mockResolvedValue({ currentStreak: 2 }) },
@@ -26,8 +26,9 @@ function mocks() {
   const achievements = { answerXpBreakdown: vi.fn().mockReturnValue({ base: 10 }), awardXp: vi.fn().mockResolvedValue({ awardedXp: 10, totalXp: 100, level: 2, leveledUp: false, breakdown: { base: 10 } }), evaluateAchievements: vi.fn().mockResolvedValue([]) };
   const recommendations = { recommend: vi.fn().mockResolvedValue([{ questionId: 'q-9' }]) };
   const events = { emit: vi.fn() };
-  const svc = new PracticeSessionService(prisma as never, cache as never, progress as never, achievements as never, recommendations as never, events as never);
-  return { prisma, cache, progress, achievements, recommendations, events, tx, svc };
+  const diagrams = { resolveMany: vi.fn().mockResolvedValue(new Map()), resolveOne: vi.fn().mockResolvedValue(null), publicIdFor: vi.fn() };
+  const svc = new PracticeSessionService(prisma as never, cache as never, progress as never, achievements as never, recommendations as never, events as never, diagrams as never);
+  return { prisma, cache, progress, achievements, recommendations, events, diagrams, tx, svc };
 }
 
 describe('PracticeSessionService', () => {

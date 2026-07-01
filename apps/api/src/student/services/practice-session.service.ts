@@ -21,6 +21,7 @@ import { CacheService } from '../../cache/cache.service';
 import { ProgressTrackingService } from './progress-tracking.service';
 import { AchievementService } from './achievement.service';
 import { QuestionRecommendationService } from './question-recommendation.service';
+import { QuestionDiagramLookupService } from '../../questions/services/question-diagram-lookup.service';
 import { StudentErrors } from '../errors/student.errors';
 import { EVENTS, CACHE_KEYS } from '../../common/constants';
 import { XP_RULES, PRACTICE_LIMITS } from '../constants/student.constants';
@@ -37,6 +38,7 @@ export class PracticeSessionService {
     private readonly achievements: AchievementService,
     private readonly recommendations: QuestionRecommendationService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly diagrams: QuestionDiagramLookupService,
   ) {}
 
   // ── Session lifecycle ─────────────────────────────────────────────────────────
@@ -64,6 +66,7 @@ export class PracticeSessionService {
       where: { id: { in: selectedIds } },
       select: {
         id: true,
+        questionCode: true,
         stemText: true,
         choices: {
           select: { choiceLetter: true, choiceText: true },
@@ -71,6 +74,7 @@ export class PracticeSessionService {
         },
       },
     });
+    const diagramsByCode = await this.diagrams.resolveMany(rows.map((r) => r.questionCode));
     const byId = new Map(rows.map((r) => [r.id, r]));
     const questions = selectedIds
       .map((id) => byId.get(id))
@@ -80,6 +84,7 @@ export class PracticeSessionService {
         questionId: r.id,
         stemText: r.stemText,
         choices: r.choices.map((c) => ({ key: c.choiceLetter, text: c.choiceText })),
+        diagram: diagramsByCode.get(r.questionCode) ?? null,
       }));
 
     return { sessionId: session.id, mode: session.mode, targetCount: session.targetCount, questionIds: selectedIds, questions };

@@ -13,6 +13,7 @@ import type {
   ChoiceView,
   QuestionSummary,
   QuestionDetail,
+  QuestionDiagramView,
   VersionSnapshot,
 } from '../types/questions.types';
 import type { ReviewStage } from '../constants/questions.constants';
@@ -59,7 +60,7 @@ export class QuestionMapperService {
     };
   }
 
-  toSummary(q: QuestionRow, tags: string[] = []): QuestionSummary {
+  toSummary(q: QuestionRow, tags: string[] = [], diagram: QuestionDiagramView | null = null): QuestionSummary {
     return {
       id:            q.id,
       questionCode:  q.questionCode,
@@ -79,13 +80,14 @@ export class QuestionMapperService {
       createdAt:     q.createdAt.toISOString(),
       updatedAt:     q.updatedAt.toISOString(),
       tags,
+      diagram,
     };
   }
 
-  toDetail(q: QuestionRow, reviewStage: ReviewStage | null): QuestionDetail {
+  toDetail(q: QuestionRow, reviewStage: ReviewStage | null, diagram: QuestionDiagramView | null = null): QuestionDetail {
     const tags = (q.questionTags ?? []).map((t) => t.tagId);
     return {
-      ...this.toSummary(q, tags),
+      ...this.toSummary(q, tags, diagram),
       stemLatex:         q.stemLatex,
       stemHtml:          q.stemHtml,
       correctChoice:     q.correctChoice,

@@ -15,6 +15,16 @@ export interface ChoiceView {
   sortOrder:   number;
 }
 
+/** A diagram/figure attached to a question, resolved by naming convention. */
+export interface QuestionDiagramView {
+  publicId:    string;
+  title:       string;
+  imageUrl:    string;
+  altText:     string;
+  caption:     string | null;
+  description: string | null;
+}
+
 /** Compact question representation for list/search results. */
 export interface QuestionSummary {
   id:            string;
@@ -35,6 +45,7 @@ export interface QuestionSummary {
   createdAt:     string;
   updatedAt:     string;
   tags:          string[];
+  diagram:       QuestionDiagramView | null;
 }
 
 /** Full question detail. */

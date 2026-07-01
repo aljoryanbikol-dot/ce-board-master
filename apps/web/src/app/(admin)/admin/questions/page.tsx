@@ -12,6 +12,7 @@ import { questionsApi, difficultyApi, type QuestionSummary, type QuestionStatus 
 import { subjectsApi, topicsApi, subtopicsApi } from '@/features/admin/api/taxonomy-api';
 import { MathText } from '@/components/common/math-text';
 import { MarkdownMath } from '@/components/common/markdown-math';
+import { DiagramImage, type DiagramImageData } from '@/components/common/diagram-image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +33,7 @@ interface FormState {
   estSolvingTimeSec: number; prcSyllabusRef: string; keywords: string;
   learningObjective: string; boardYears: string; engineeringNotes: string; commonMistakes: string[];
   version?: number;
+  diagram?: DiagramImageData | null;
 }
 const blank = (): FormState => ({
   subjectId: '', topicId: '', subtopicId: '', questionCode: '', stemText: '',
@@ -39,6 +41,7 @@ const blank = (): FormState => ({
   difficultyLevelId: '', questionType: 'multiple_choice', bloomLevel: 'apply',
   estSolvingTimeSec: 90, prcSyllabusRef: '', keywords: '',
   learningObjective: '', boardYears: '', engineeringNotes: '', commonMistakes: [],
+  diagram: null,
 });
 
 const parseYears = (s: string): number[] =>
@@ -147,7 +150,7 @@ export default function QuestionsAdminPage() {
         keywords: d.keywords?.join(', ') ?? '',
         learningObjective: d.learningObjective ?? '', boardYears: (d.prcYearAppeared ?? []).join(', '),
         engineeringNotes: d.engineeringNotes ?? '', commonMistakes: d.commonMistakes ?? [],
-        version: d.currentVersion,
+        version: d.currentVersion, diagram: d.diagram,
       });
     } catch (e) { toast.fromError(e, 'Could not load question'); setOpen(false); }
     finally { setLoadingForm(false); }
@@ -221,7 +224,13 @@ export default function QuestionsAdminPage() {
               <tr key={row.id} className="border-b align-top last:border-0 hover:bg-secondary/40">
                 <td className="p-3"><input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} aria-label="Select" /></td>
                 <td className="p-3 font-mono text-xs">{row.questionCode}</td>
-                <td className="max-w-md p-3"><span className="line-clamp-2 text-muted-foreground"><MathText text={row.stemText} /></span></td>
+                <td className="max-w-md p-3">
+                  <span className="line-clamp-2 text-muted-foreground"><MathText text={row.stemText} /></span>
+                  {row.diagram ? (
+                    /* eslint-disable-next-line @next/next/no-img-element -- SVG data URIs aren't compatible with next/image optimization */
+                    <img src={row.diagram.imageUrl} alt={row.diagram.altText} className="mt-1 h-10 w-16 rounded border object-contain" />
+                  ) : null}
+                </td>
                 <td className="p-3">{subjMap.get(row.subjectId) ?? '—'}</td>
                 <td className="p-3">{diffMap.get(row.difficultyLevelId) ?? '—'}</td>
                 <td className="p-3"><Badge variant={statusVariant(row.status)}>{row.status}</Badge></td>
@@ -292,6 +301,12 @@ export default function QuestionsAdminPage() {
               <label className="mb-1 block text-sm font-medium">Stem *</label>
               <textarea className="w-full rounded-lg border bg-background p-2 font-mono text-sm" rows={4} value={form.stemText} onChange={(e) => setF({ stemText: e.target.value })} required minLength={10} />
               {form.stemText ? <div className="mt-1 rounded border bg-muted/30 p-2"><span className="text-xs text-muted-foreground">Preview</span><MarkdownMath text={form.stemText} /></div> : null}
+              {form.diagram ? (
+                <div className="mt-2">
+                  <span className="text-xs text-muted-foreground">Linked diagram (synced from the Knowledge Library — read-only here)</span>
+                  <DiagramImage diagram={form.diagram} />
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-2">

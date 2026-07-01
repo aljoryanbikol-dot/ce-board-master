@@ -26,6 +26,7 @@ import { QuestionService } from './services/question.service';
 import { QuestionWorkflowService } from './services/question-workflow.service';
 import { QuestionSearchService } from './services/question-search.service';
 import { QuestionMapperService } from './services/question-mapper.service';
+import { QuestionDiagramLookupService } from './services/question-diagram-lookup.service';
 
 @Module({
   imports: [AuthModule, RbacModule],
@@ -35,7 +36,8 @@ import { QuestionMapperService } from './services/question-mapper.service';
     QuestionWorkflowService,
     QuestionSearchService,
     QuestionMapperService,
+    QuestionDiagramLookupService,
   ],
-  exports: [QuestionService, QuestionSearchService, QuestionWorkflowService],
+  exports: [QuestionService, QuestionSearchService, QuestionWorkflowService, QuestionDiagramLookupService],
 })
 export class QuestionsModule {}

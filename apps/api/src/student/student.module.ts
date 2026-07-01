@@ -20,6 +20,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { RbacModule } from '../rbac/rbac.module';
+import { QuestionsModule } from '../questions/questions.module';
 // Controllers
 import { StudentDashboardController } from './controllers/student-dashboard.controller';
 import { PracticeController } from './controllers/practice.controller';
@@ -39,7 +40,7 @@ import { StudentStatisticsService } from './services/student-statistics.service'
 import { EngagementService } from './services/engagement.service';
 
 @Module({
-  imports: [AuthModule, RbacModule],
+  imports: [AuthModule, RbacModule, QuestionsModule],
   controllers: [
     StudentDashboardController,
     PracticeController,

@@ -5,6 +5,15 @@
  */
 import { api } from '@/lib/api/client';
 
+export interface QuestionDiagramView {
+  publicId: string;
+  title: string;
+  imageUrl: string;
+  altText: string;
+  caption: string | null;
+  description: string | null;
+}
+
 export interface QuestionSummary {
   id: string;
   questionCode: string;
@@ -20,6 +29,7 @@ export interface QuestionSummary {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  diagram: QuestionDiagramView | null;
 }
 
 export interface ChoiceView { letter: string; text: string; isCorrect: boolean; }

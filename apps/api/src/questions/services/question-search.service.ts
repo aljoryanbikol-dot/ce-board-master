@@ -12,6 +12,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { CacheService } from '../../cache/cache.service';
 import { QuestionService } from './question.service';
 import { QuestionMapperService } from './question-mapper.service';
+import { QuestionDiagramLookupService } from './question-diagram-lookup.service';
 import { QuestionErrors } from '../questions.errors';
 import { ROLE_SLUGS, PERM } from '../../rbac/rbac.constants';
 import { UserRoleService } from '../../rbac/services/user-role.service';
@@ -37,6 +38,7 @@ export class QuestionSearchService {
     private readonly questionService: QuestionService,
     private readonly mapper: QuestionMapperService,
     private readonly userRoleService: UserRoleService,
+    private readonly diagrams: QuestionDiagramLookupService,
   ) {}
 
   // ── Search ────────────────────────────────────────────────────────────────────
@@ -59,8 +61,10 @@ export class QuestionSearchService {
     const page = hasMore ? rows.slice(0, query.limit) : rows;
     const cursor = hasMore && page.length > 0 ? page[page.length - 1]!.id : null;
 
+    const diagramsByCode = await this.diagrams.resolveMany(page.map((q: (typeof page)[number]) => q.questionCode));
+
     const result: QuestionListResult = {
-      data: page.map((q: (typeof page)[number]) => this.mapper.toSummary(q, q.questionTags.map((t: { tagId: string }) => t.tagId))),
+      data: page.map((q: (typeof page)[number]) => this.mapper.toSummary(q, q.questionTags.map((t: { tagId: string }) => t.tagId), diagramsByCode.get(q.questionCode) ?? null)),
       pagination: { cursor, hasMore, total },
     };
     await this.cache.set(cacheKey, result, QUESTION_LIST_CACHE_TTL);

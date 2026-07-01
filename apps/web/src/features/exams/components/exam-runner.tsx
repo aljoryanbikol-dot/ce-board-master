@@ -5,6 +5,7 @@ import { Flag, ChevronLeft, ChevronRight, Clock, Send } from 'lucide-react';
 import { examsApi } from '../api/exams-api';
 import { PageHeader } from '@/components/common/page-header';
 import { MathText } from '@/components/common/math-text';
+import { DiagramImage, type DiagramImageData } from '@/components/common/diagram-image';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +13,7 @@ import { LoadingState, Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 
-interface ExamQuestion { examQuestionId: string; stemText: string; choices: Array<{ key: string; text: string }>; }
+interface ExamQuestion { examQuestionId: string; stemText: string; choices: Array<{ key: string; text: string }>; diagram?: DiagramImageData | null; }
 interface ExamData { examId: string; durationMinutes: number; questions: ExamQuestion[]; }
 
 function formatClock(totalSec: number): string {
@@ -45,6 +46,7 @@ export function ExamRunner({ examId }: { examId: string }) {
           examQuestionId: String(q.examQuestionId),
           stemText: String(q.stemText ?? ''),
           choices: ((q.choices as Array<{ key?: string; letter?: string; text: string }>) ?? []).map((c) => ({ key: c.key ?? c.letter ?? '', text: c.text })),
+          diagram: (q.diagram as DiagramImageData | null) ?? null,
         }));
         const durationMinutes = Number((meta as { durationMinutes?: number } | null)?.durationMinutes ?? (qsRaw as { durationMinutes?: number })?.durationMinutes ?? 60);
         setExam({ examId, durationMinutes, questions });
@@ -112,6 +114,7 @@ export function ExamRunner({ examId }: { examId: string }) {
                 <Flag className={cn('h-4 w-4', flags.has(q.examQuestionId) && 'fill-warning text-warning')} />
               </Button>
             </div>
+            <DiagramImage diagram={q.diagram} />
             <div className="mt-5 space-y-2.5">
               {q.choices.map((c) => {
                 const isSelected = answers[q.examQuestionId] === c.key;

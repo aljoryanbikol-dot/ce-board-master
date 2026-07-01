@@ -4,6 +4,7 @@ import { Dumbbell, ArrowRight, Check, X } from 'lucide-react';
 import { studentApi } from '@/features/student/api/student-api';
 import { PageHeader } from '@/components/common/page-header';
 import { MathText } from '@/components/common/math-text';
+import { DiagramImage, type DiagramImageData } from '@/components/common/diagram-image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +13,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 
-interface PracticeQuestion { id: string; questionId?: string; stemText: string; choices: Array<{ key: string; text: string }>; }
+interface PracticeQuestion { id: string; questionId?: string; stemText: string; choices: Array<{ key: string; text: string }>; diagram?: DiagramImageData | null; }
 interface PracticeSession { sessionId: string; questions: PracticeQuestion[]; }
 interface AnswerResult { correct: boolean; correctChoice: string; explanationText?: string; }
 
@@ -114,6 +115,7 @@ export function PracticeView() {
       <Card>
         <CardContent className="p-6">
           <p className="font-medium"><MathText text={q.stemText} /></p>
+          <DiagramImage diagram={q.diagram} />
           <div className="mt-5 space-y-2.5">
             {q.choices.map((c) => {
               const isSelected = selected === c.key;

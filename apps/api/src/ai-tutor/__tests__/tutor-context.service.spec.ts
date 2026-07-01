@@ -58,4 +58,31 @@ describe('TutorContextService', () => {
     const ctx = await m.svc.build({ subjectId: 's-1', topicId: null });
     expect(ctx.misconceptions).toHaveLength(0);
   });
+
+  it('searches by query text across all subjects when no subject is selected', async () => {
+    m.prisma.learningObjective.findMany.mockResolvedValue([
+      { publicId: 'LO-1', statement: 'Apply the portal method: distribute story shear to columns with interior columns taking twice the shear of exterior columns.' },
+      { publicId: 'LO-2', statement: 'Compute the moment of inertia of a composite section.' },
+    ]);
+    const ctx = await m.svc.build({ subjectId: null, topicId: null, queryText: 'How do I distribute story shear to columns using the portal method?' });
+    expect(ctx.learningObjectives[0]!.publicId).toBe('LO-1');
+    expect(ctx.learningObjectives).toHaveLength(1); // LO-2 has zero keyword hits, filtered out
+    // Unscoped search: no subjectCode filter applied since subjectId is null.
+    const where = m.prisma.learningObjective.findMany.mock.calls[0]![0].where;
+    expect(where.subjectCode).toBeUndefined();
+  });
+
+  it('ranks query-scoped results by keyword-hit count, best first', async () => {
+    m.prisma.learningObjective.findMany.mockResolvedValue([
+      { publicId: 'LO-weak', statement: 'This mentions shear once.' },
+      { publicId: 'LO-strong', statement: 'Portal method distributes story shear to columns; shear governs column design.' },
+    ]);
+    const ctx = await m.svc.build({ subjectId: 's-1', topicId: null, queryText: 'portal method story shear columns' });
+    expect(ctx.learningObjectives[0]!.publicId).toBe('LO-strong');
+  });
+
+  it('does not use the subject/topic cache for query-driven lookups', async () => {
+    await m.svc.build({ subjectId: 's-1', topicId: null, queryText: 'portal method' });
+    expect(m.cache.remember).not.toHaveBeenCalled();
+  });
 });

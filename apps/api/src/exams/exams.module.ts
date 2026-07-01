@@ -21,6 +21,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { StudentModule } from '../student/student.module';
+import { QuestionsModule } from '../questions/questions.module';
 // Controllers
 import { MockExamController } from './controllers/mock-exam.controller';
 import { ExamSessionController } from './controllers/exam-session.controller';
@@ -38,7 +39,7 @@ import { ExamAnalyticsService } from './services/exam-analytics.service';
 import { ExamRecommendationService } from './services/exam-recommendation.service';
 
 @Module({
-  imports: [AuthModule, RbacModule, StudentModule],
+  imports: [AuthModule, RbacModule, StudentModule, QuestionsModule],
   controllers: [
     MockExamController,
     ExamSessionController,

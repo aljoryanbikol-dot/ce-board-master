@@ -17,6 +17,7 @@ import { CacheService } from '../../cache/cache.service';
 import { MockExamService } from './mock-exam.service';
 import { ExamTimerService } from './exam-timer.service';
 import { ExamResultService } from './exam-result.service';
+import { QuestionDiagramLookupService } from '../../questions/services/question-diagram-lookup.service';
 import { ExamErrors } from '../errors/exam.errors';
 import { EVENTS, CACHE_KEYS } from '../../common/constants';
 import { EXAM_LIMITS } from '../constants/exam.constants';
@@ -32,6 +33,7 @@ export class ExamSessionService {
     private readonly timer: ExamTimerService,
     private readonly result: ExamResultService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly diagrams: QuestionDiagramLookupService,
   ) {}
 
   // ── Start ───────────────────────────────────────────────────────────────────
@@ -92,8 +94,9 @@ export class ExamSessionService {
     await this.ownedExam(userId, examId);
     const examQuestions = await this.prisma.examQuestion.findMany({
       where: { examId }, orderBy: { position: 'asc' },
-      include: { answer: true, question: { select: { stemText: true, choices: { select: { choiceLetter: true, choiceText: true } } } } },
+      include: { answer: true, question: { select: { questionCode: true, stemText: true, choices: { select: { choiceLetter: true, choiceText: true } } } } },
     });
+    const diagramsByCode = await this.diagrams.resolveMany(examQuestions.map((eq: any) => eq.question.questionCode));
     return examQuestions.map((eq: any) => {
       const choiceMap = new Map<string, string>(eq.question.choices.map((ch: any) => [ch.choiceLetter, ch.choiceText]));
       const order = eq.choiceOrder as string[];
@@ -101,6 +104,7 @@ export class ExamSessionService {
       return {
         examQuestionId: eq.id, position: eq.position, questionId: eq.questionId, stemText: eq.question.stemText,
         choices, state: eq.state, selectedChoice: eq.answer?.selectedChoice ?? null, isBookmarked: eq.answer?.isBookmarked ?? false,
+        diagram: diagramsByCode.get(eq.question.questionCode) ?? null,
       };
     });
   }
