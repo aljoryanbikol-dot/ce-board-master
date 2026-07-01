@@ -37,7 +37,7 @@ const KIND_TO_DEF = {
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const URI_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/\S+$/;
+const URI_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:(\/\/\S+|\S+)$/;
 
 function resolveRef(ref) {
   const name = ref.split('/').pop();

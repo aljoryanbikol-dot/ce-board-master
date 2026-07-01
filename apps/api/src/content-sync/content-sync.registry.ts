@@ -84,7 +84,7 @@ const DiagramInput = z.object({
   publicId, subjectCode, topicCode,
   title: z.string().trim().min(1).max(300),
   description: z.string().trim().max(2000).nullable().optional(),
-  imageUrl: z.string().trim().url().max(1000),
+  imageUrl: z.string().trim().url().max(300000),
   altText: z.string().trim().min(1).max(500),
   caption: z.string().trim().max(500).nullable().optional(),
   diagramType: z.string().trim().max(60).nullable().optional(),
