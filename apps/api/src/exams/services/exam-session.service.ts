@@ -38,7 +38,7 @@ export class ExamSessionService {
 
   // ── Start ───────────────────────────────────────────────────────────────────
   async start(userId: string, dto: StartExamDto) {
-    const config = await this.resolveConfig(dto);
+    const config = await this.resolveConfig(userId, dto);
 
     const built = await this.mockExam.buildQuestions({ kind: dto.kind, composition: config.composition, randomizeChoices: config.randomizeChoices });
 
@@ -221,7 +221,7 @@ export class ExamSessionService {
     }
   }
 
-  private async resolveConfig(dto: StartExamDto): Promise<{ composition: CompositionEntry[]; durationMinutes: number; passingScore: number; randomizeChoices: boolean; templateId?: string; title: string }> {
+  private async resolveConfig(userId: string, dto: StartExamDto): Promise<{ composition: CompositionEntry[]; durationMinutes: number; passingScore: number; randomizeChoices: boolean; templateId?: string; title: string }> {
     if (dto.templateId) {
       const t = await this.mockExam.getTemplate(dto.templateId);
       if (!t.isActive) throw ExamErrors.templateInactive(dto.templateId);
@@ -240,9 +240,15 @@ export class ExamSessionService {
     if (dto.subjectId) {
       return { composition: this.mockExam.subjectComposition(dto.subjectId, total), durationMinutes, passingScore, randomizeChoices: true, title: 'Subject Mock Exam' };
     }
-    // adaptive / ai_generated without explicit config → broad subject sampling default
+    if (dto.kind === 'adaptive') {
+      return { composition: await this.mockExam.adaptiveComposition(userId, total), durationMinutes, passingScore, randomizeChoices: true, title: 'Adaptive Mock Exam' };
+    }
+    if (dto.kind === 'ai_generated') {
+      return { composition: await this.mockExam.aiGeneratedComposition(userId, total), durationMinutes, passingScore, randomizeChoices: true, title: 'AI-Generated Mock Exam' };
+    }
+    // No explicit config and no recognized kind branch matched → broad subject sampling default.
     const fallback = await this.mockExam.fullBoardComposition(total);
-    return { composition: fallback, durationMinutes, passingScore, randomizeChoices: true, title: dto.kind === 'adaptive' ? 'Adaptive Mock Exam' : 'AI-Generated Mock Exam' };
+    return { composition: fallback, durationMinutes, passingScore, randomizeChoices: true, title: 'Mock Exam' };
   }
 
   private async ownedExam(userId: string, examId: string) {

@@ -12,7 +12,8 @@ function mocks() {
     examResult: { findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn().mockResolvedValue(resultWithScores) },
     examQuestion: { findMany: vi.fn().mockResolvedValue([{ learningObjective: 'LO-1', answer: { isCorrect: true } }, { learningObjective: 'LO-1', answer: { isCorrect: false } }]) },
   };
-  return { prisma, svc: new ExamAnalyticsService(prisma as never) };
+  const cache = { remember: vi.fn((_k: string, _t: number, fn: () => unknown) => fn()), del: vi.fn() };
+  return { prisma, cache, svc: new ExamAnalyticsService(prisma as never, cache as never) };
 }
 
 describe('ExamAnalyticsService', () => {
@@ -26,6 +27,23 @@ describe('ExamAnalyticsService', () => {
       expect(res.data).toHaveLength(1);
       expect(res.data[0]!.passed).toBe(true);
       expect(res.pagination.hasMore).toBe(false);
+    });
+    it('caches the first (cursor-less) page per user', async () => {
+      await m.svc.history('u-1', 20);
+      expect(m.cache.remember).toHaveBeenCalledWith(expect.stringContaining('u-1'), expect.any(Number), expect.any(Function));
+    });
+    it('does not use the cache for a cursor-paginated request', async () => {
+      m.cache.remember.mockClear();
+      await m.svc.history('u-1', 20, 'cursor-abc');
+      expect(m.cache.remember).not.toHaveBeenCalled();
+    });
+    it('serves from cache without hitting Prisma again on a second call', async () => {
+      m.cache.remember.mockImplementationOnce((_k: string, _t: number, fn: () => unknown) => fn());
+      m.cache.remember.mockImplementationOnce(() => ({ data: [], pagination: { cursor: null, hasMore: false } }));
+      await m.svc.history('u-1', 20);
+      m.prisma.examResult.findMany.mockClear();
+      await m.svc.history('u-1', 20);
+      expect(m.prisma.examResult.findMany).not.toHaveBeenCalled();
     });
   });
 
@@ -63,6 +81,12 @@ describe('ExamAnalyticsService', () => {
       const board = await m.svc.leaderboard(undefined, 10);
       expect(board[0]!.rank).toBe(1);
       expect(board[0]!.userId).toBe('a');
+    });
+    it('caches distinctly per template + limit', async () => {
+      await m.svc.leaderboard('tpl-1', 10);
+      await m.svc.leaderboard('tpl-2', 10);
+      const keys = m.cache.remember.mock.calls.map((c: unknown[]) => c[0]);
+      expect(new Set(keys).size).toBe(keys.length); // every call used a distinct key
     });
   });
 });

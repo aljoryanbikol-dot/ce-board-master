@@ -16,8 +16,16 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { ExamErrors } from '../errors/exam.errors';
+import { ADAPTIVE_RULES } from '../constants/exam.constants';
 import type { CompositionEntry, BuiltExamQuestion } from '../types/exam.types';
 import type { CreateTemplateDto, UpdateTemplateDto } from '../dto/exam.dto';
+
+/** Minimum published-question inventory for a subject to be eligible for
+ * difficulty-banded weighting; below this, weight it as a single flat entry
+ * so buildQuestions() never gets handed an unsatisfiable per-band request. */
+const MIN_POOL_FOR_DIFFICULTY_SPLIT = 8;
+/** Minimum published questions for a subject to be included in adaptive weighting at all. */
+const MIN_POOL_TO_INCLUDE = 1;
 
 interface BuildRequest {
   kind: string;
@@ -148,6 +156,124 @@ export class MockExamService {
   /** Single-subject composition. */
   subjectComposition(subjectId: string, count: number): CompositionEntry[] {
     return [{ subjectId, count }];
+  }
+
+  /**
+   * Adaptive composition: weights subjects toward the student's weak topics
+   * (from TopicMastery — lower mastery gets proportionally more questions),
+   * and skews difficulty per ADAPTIVE_RULES based on their recent accuracy.
+   * Falls back to the full-board PRC-weighted default for a new student with
+   * no mastery history yet, or if nothing in their history has enough
+   * published inventory to weight against.
+   */
+  async adaptiveComposition(userId: string, totalQuestions: number): Promise<CompositionEntry[]> {
+    const mastery = await this.prisma.topicMastery.findMany({
+      where: { userId, attempts: { gt: 0 } },
+      select: { subjectId: true, masteryScore: true },
+    });
+    if (mastery.length === 0) return this.fullBoardComposition(totalQuestions);
+
+    const weights = await this.weaknessWeightedSubjects(mastery);
+    if (weights.length === 0) return this.fullBoardComposition(totalQuestions);
+
+    const mix = await this.recentAccuracyDifficultyMix(userId);
+    const entries = await this.distributeByWeightAndDifficulty(weights, mix, totalQuestions);
+    return entries.length ? entries : this.fullBoardComposition(totalQuestions);
+  }
+
+  /**
+   * AI-generated composition: the same weak-area + difficulty-skew signal as
+   * adaptive, plus a freshness factor that favors topics the student hasn't
+   * practiced recently (spaced-repetition style) over ones just reviewed —
+   * composed algorithmically today behind the same seam an LLM-backed planner
+   * would sit behind later (mirrors the AI Tutor's deterministic-now,
+   * AI-ready provider pattern).
+   */
+  async aiGeneratedComposition(userId: string, totalQuestions: number): Promise<CompositionEntry[]> {
+    const mastery = await this.prisma.topicMastery.findMany({
+      where: { userId, attempts: { gt: 0 } },
+      select: { subjectId: true, masteryScore: true, lastPracticedAt: true },
+    });
+    if (mastery.length === 0) return this.fullBoardComposition(totalQuestions);
+
+    const now = Date.now();
+    const withFreshness = mastery.map((m) => {
+      const daysSince = m.lastPracticedAt ? (now - m.lastPracticedAt.getTime()) / 86_400_000 : 30;
+      // Cap the boost so a single stale topic can't dominate the whole exam.
+      const freshnessBoost = Math.min(20, daysSince);
+      return { subjectId: m.subjectId, masteryScore: Math.max(0, m.masteryScore - freshnessBoost) };
+    });
+
+    const weights = await this.weaknessWeightedSubjects(withFreshness);
+    if (weights.length === 0) return this.fullBoardComposition(totalQuestions);
+
+    const mix = await this.recentAccuracyDifficultyMix(userId);
+    const entries = await this.distributeByWeightAndDifficulty(weights, mix, totalQuestions);
+    return entries.length ? entries : this.fullBoardComposition(totalQuestions);
+  }
+
+  // ── adaptive/AI composition helpers ─────────────────────────────────────────────
+
+  /** Turn per-topic mastery rows into subject-level weights (inverse of mastery,
+   * floored so no subject drops to zero), restricted to subjects with published inventory. */
+  private async weaknessWeightedSubjects(rows: { subjectId: string; masteryScore: number }[]): Promise<{ subjectId: string; weight: number; poolSize: number }[]> {
+    const bySubject = new Map<string, number[]>();
+    for (const r of rows) {
+      const list = bySubject.get(r.subjectId) ?? [];
+      list.push(r.masteryScore);
+      bySubject.set(r.subjectId, list);
+    }
+    const subjectIds = Array.from(bySubject.keys());
+    const poolCounts = await Promise.all(
+      subjectIds.map((subjectId) => this.prisma.question.count({ where: { subjectId, questionStatus: 'published', deletedAt: null } })),
+    );
+    const poolBySubject = new Map(subjectIds.map((id, i) => [id, poolCounts[i]!]));
+
+    return subjectIds
+      .map((subjectId) => {
+        const scores = bySubject.get(subjectId)!;
+        const avg = scores.reduce((s, v) => s + v, 0) / scores.length;
+        return { subjectId, weight: Math.max(10, 100 - avg), poolSize: poolBySubject.get(subjectId) ?? 0 };
+      })
+      .filter((w) => w.poolSize >= MIN_POOL_TO_INCLUDE);
+  }
+
+  /** Recent-accuracy difficulty mix per ADAPTIVE_RULES (share of Foundational/Intermediate/Advanced). */
+  private async recentAccuracyDifficultyMix(userId: string): Promise<{ code: number; share: number }[]> {
+    const recent = await this.prisma.questionAttempt.findMany({
+      where: { userId }, orderBy: { attemptedAt: 'desc' }, take: ADAPTIVE_RULES.WINDOW, select: { isCorrect: true },
+    });
+    const accuracy = recent.length ? recent.filter((r) => r.isCorrect).length / recent.length : 0.6;
+    if (accuracy >= ADAPTIVE_RULES.PROMOTE_ACCURACY) return [{ code: 1, share: 0.15 }, { code: 2, share: 0.30 }, { code: 3, share: 0.55 }];
+    if (accuracy <= ADAPTIVE_RULES.DEMOTE_ACCURACY) return [{ code: 1, share: 0.50 }, { code: 2, share: 0.35 }, { code: 3, share: 0.15 }];
+    return [{ code: 1, share: 0.30 }, { code: 2, share: 0.40 }, { code: 3, share: 0.30 }];
+  }
+
+  /** Distribute totalQuestions across weighted subjects, banding by difficulty
+   * mix only where the subject's pool is large enough to satisfy each band. */
+  private async distributeByWeightAndDifficulty(
+    weights: { subjectId: string; weight: number; poolSize: number }[],
+    mix: { code: number; share: number }[],
+    totalQuestions: number,
+  ): Promise<CompositionEntry[]> {
+    const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
+    const difficultyLevels = await this.prisma.difficultyLevel.findMany({ select: { id: true, code: true } });
+    const idByCode = new Map(difficultyLevels.map((d) => [d.code, d.id]));
+
+    const entries: CompositionEntry[] = [];
+    for (const { subjectId, weight, poolSize } of weights) {
+      const subjectCount = Math.max(1, Math.round(totalQuestions * (weight / totalWeight)));
+      if (poolSize < MIN_POOL_FOR_DIFFICULTY_SPLIT) {
+        entries.push({ subjectId, count: Math.min(subjectCount, poolSize) });
+        continue;
+      }
+      for (const { code, share } of mix) {
+        const difficultyLevelId = idByCode.get(code);
+        const count = Math.round(subjectCount * share);
+        if (count > 0 && difficultyLevelId) entries.push({ subjectId, count, difficultyLevelId });
+      }
+    }
+    return entries;
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────────

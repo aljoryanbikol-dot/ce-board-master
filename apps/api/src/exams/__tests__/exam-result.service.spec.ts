@@ -22,7 +22,7 @@ function mocks() {
   };
   const prisma = {
     $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
-    examResult: { findUnique: vi.fn().mockResolvedValue(null), findUniqueOrThrow: vi.fn().mockResolvedValue(resultRow) },
+    examResult: { findUnique: vi.fn().mockResolvedValue(null), findUniqueOrThrow: vi.fn().mockResolvedValue(resultRow), count: vi.fn().mockResolvedValue(0) },
     examQuestion: { findMany: vi.fn().mockResolvedValue([
       { id: 'eq-1', subjectId: 's-1', topicId: 't-1', correctChoice: 'A', choiceOrder: ['A', 'B', 'C', 'D'], answer: { id: 'ea-1', selectedChoice: 'A' } },
       { id: 'eq-2', subjectId: 's-1', topicId: 't-1', correctChoice: 'B', choiceOrder: ['B', 'A', 'C', 'D'], answer: { id: 'ea-2', selectedChoice: 'A' } }, // presented A -> original B (correct)
@@ -72,6 +72,18 @@ describe('ExamResultService', () => {
     it('generates a certificate-ready result code', async () => {
       const view = await m.svc.computeAndPersist('ex-1', 'u-1', 100);
       expect(view.resultCode.length).toBeGreaterThan(8);
+    });
+    it('computes and persists a percentile against prior results', async () => {
+      m.prisma.examResult.count.mockResolvedValueOnce(7).mockResolvedValueOnce(10); // 7 of 10 prior scored lower
+      await m.svc.computeAndPersist('ex-1', 'u-1', 100);
+      const createArg = m.tx.examResult.create.mock.calls[0]![0].data;
+      expect(createArg.percentile).toBe(70);
+    });
+    it('leaves percentile null when there are no prior results to compare against', async () => {
+      m.prisma.examResult.count.mockResolvedValue(0);
+      await m.svc.computeAndPersist('ex-1', 'u-1', 100);
+      const createArg = m.tx.examResult.create.mock.calls[0]![0].data;
+      expect(createArg.percentile).toBeNull();
     });
   });
 

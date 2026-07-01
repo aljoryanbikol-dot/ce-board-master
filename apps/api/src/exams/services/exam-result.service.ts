@@ -59,6 +59,15 @@ export class ExamResultService {
 
     const resultCode = `${RESULT_CODE_PREFIX}-${randomUUID().slice(0, 8).toUpperCase()}`;
 
+    // Percentile: share of prior completed results (same template, if any —
+    // matches how the leaderboard itself is scoped) this score beats.
+    const templateId = exam?.templateId ?? null;
+    const [lowerCount, priorCount] = await Promise.all([
+      this.prisma.examResult.count({ where: { scorePercent: { lt: breakdown.scorePercent }, ...(templateId && { exam: { templateId } }) } }),
+      this.prisma.examResult.count({ where: { ...(templateId && { exam: { templateId } }) } }),
+    ]);
+    const percentile = priorCount > 0 ? Math.round((lowerCount / priorCount) * 10000) / 100 : null;
+
     const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Persist per-answer correctness for review.
       for (let i = 0; i < examQuestions.length; i++) {
@@ -73,7 +82,7 @@ export class ExamResultService {
           examId, userId, totalQuestions, answeredCount: breakdown.answeredCount,
           correctCount: breakdown.correctCount, incorrectCount: breakdown.incorrectCount, skippedCount: breakdown.skippedCount,
           scorePercent: breakdown.scorePercent, passingScore, status: breakdown.passed ? 'pass' : 'fail',
-          timeSpentSec, resultCode,
+          timeSpentSec, resultCode, percentile,
           subjectScores: { create: breakdown.bySubject.map((s) => ({ subjectId: s.subjectId, total: s.total, correct: s.correct, scorePercent: s.scorePercent, weightPercent: s.weightPercent })) },
           topicScores: { create: breakdown.byTopic.map((t) => ({ subjectId: t.subjectId, topicId: t.topicId, total: t.total, correct: t.correct, scorePercent: t.scorePercent })) },
         },

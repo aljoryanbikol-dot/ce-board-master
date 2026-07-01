@@ -16,8 +16,11 @@ function pool(n: number, subjectId = 's-1') {
 function mocks() {
   const prisma = {
     examTemplate: { create: vi.fn().mockResolvedValue({ id: 'tpl-1' }), findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn() },
-    question: { findMany: vi.fn().mockResolvedValue(pool(20)) },
+    question: { findMany: vi.fn().mockResolvedValue(pool(20)), count: vi.fn().mockResolvedValue(20) },
     subject: { findMany: vi.fn().mockResolvedValue([{ id: 's-1', prcWeightPercent: 30 }, { id: 's-2', prcWeightPercent: 70 }]) },
+    topicMastery: { findMany: vi.fn().mockResolvedValue([]) },
+    questionAttempt: { findMany: vi.fn().mockResolvedValue([]) },
+    difficultyLevel: { findMany: vi.fn().mockResolvedValue([{ id: 'd-found', code: 1 }, { id: 'd-inter', code: 2 }, { id: 'd-adv', code: 3 }]) },
   };
   return { prisma, svc: new MockExamService(prisma as never) };
 }
@@ -86,6 +89,71 @@ describe('MockExamService', () => {
   describe('subjectComposition', () => {
     it('produces a single-subject composition', () => {
       expect(m.svc.subjectComposition('s-1', 25)).toEqual([{ subjectId: 's-1', count: 25 }]);
+    });
+  });
+
+  describe('adaptiveComposition', () => {
+    it('falls back to full-board when the student has no mastery history', async () => {
+      const comp = await m.svc.adaptiveComposition('u-1', 100);
+      expect(m.prisma.subject.findMany).toHaveBeenCalled(); // fullBoardComposition path
+      expect(comp.length).toBeGreaterThan(0);
+    });
+
+    it('weights a weak subject with more questions than a strong one, banded by difficulty', async () => {
+      m.prisma.topicMastery.findMany.mockResolvedValue([
+        { subjectId: 's-1', masteryScore: 20 }, // weak
+        { subjectId: 's-2', masteryScore: 90 }, // strong
+      ]);
+      m.prisma.question.count.mockResolvedValue(20); // both pools large enough for difficulty banding
+      const comp = await m.svc.adaptiveComposition('u-1', 100);
+      const s1Total = comp.filter((c) => c.subjectId === 's-1').reduce((s, c) => s + c.count, 0);
+      const s2Total = comp.filter((c) => c.subjectId === 's-2').reduce((s, c) => s + c.count, 0);
+      expect(s1Total).toBeGreaterThan(s2Total);
+      // Difficulty banding applied since pool is large enough.
+      expect(comp.every((c) => c.difficultyLevelId)).toBe(true);
+    });
+
+    it('skews toward harder difficulty when recent accuracy is high', async () => {
+      m.prisma.topicMastery.findMany.mockResolvedValue([{ subjectId: 's-1', masteryScore: 50 }]);
+      m.prisma.questionAttempt.findMany.mockResolvedValue(Array.from({ length: 5 }, () => ({ isCorrect: true })));
+      const comp = await m.svc.adaptiveComposition('u-1', 100);
+      const advanced = comp.filter((c) => c.difficultyLevelId === 'd-adv').reduce((s, c) => s + c.count, 0);
+      const foundational = comp.filter((c) => c.difficultyLevelId === 'd-found').reduce((s, c) => s + c.count, 0);
+      expect(advanced).toBeGreaterThan(foundational);
+    });
+
+    it('falls back to a flat (non-banded) entry when the subject pool is too small to split by difficulty', async () => {
+      m.prisma.topicMastery.findMany.mockResolvedValue([{ subjectId: 's-1', masteryScore: 20 }]);
+      m.prisma.question.count.mockResolvedValue(3); // below MIN_POOL_FOR_DIFFICULTY_SPLIT
+      const comp = await m.svc.adaptiveComposition('u-1', 100);
+      expect(comp).toEqual([{ subjectId: 's-1', count: 3 }]);
+    });
+
+    it('excludes subjects with zero published inventory entirely', async () => {
+      m.prisma.topicMastery.findMany.mockResolvedValue([{ subjectId: 's-empty', masteryScore: 10 }]);
+      m.prisma.question.count.mockResolvedValue(0);
+      const comp = await m.svc.adaptiveComposition('u-1', 100);
+      // No usable weighted subject → falls back to full-board.
+      expect(m.prisma.subject.findMany).toHaveBeenCalled();
+    });
+  });
+
+  describe('aiGeneratedComposition', () => {
+    it('falls back to full-board when the student has no mastery history', async () => {
+      const comp = await m.svc.aiGeneratedComposition('u-1', 100);
+      expect(comp.length).toBeGreaterThan(0);
+    });
+
+    it('boosts a stale (long-unpracticed) topic over a freshly-practiced one at equal mastery', async () => {
+      const now = Date.now();
+      m.prisma.topicMastery.findMany.mockResolvedValue([
+        { subjectId: 's-1', masteryScore: 50, lastPracticedAt: new Date(now - 60 * 86_400_000) }, // 60 days ago
+        { subjectId: 's-2', masteryScore: 50, lastPracticedAt: new Date(now - 1 * 86_400_000) }, // 1 day ago
+      ]);
+      const comp = await m.svc.aiGeneratedComposition('u-1', 100);
+      const s1Total = comp.filter((c) => c.subjectId === 's-1').reduce((s, c) => s + c.count, 0);
+      const s2Total = comp.filter((c) => c.subjectId === 's-2').reduce((s, c) => s + c.count, 0);
+      expect(s1Total).toBeGreaterThan(s2Total);
     });
   });
 });
