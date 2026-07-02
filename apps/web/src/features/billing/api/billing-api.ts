@@ -22,10 +22,19 @@ export interface Plan {
   trialDays: number; features: string[]; isActive: boolean;
 }
 
+export interface SubscribeResult {
+  subscription: Subscription;
+  payment: { id: string; checkoutUrl: string | null; status: string } | null;
+}
+
 export const billingApi = {
   subscription: () => api.data<Subscription | null>(api.get('/subscriptions/me')),
   invoices: () => api.data<Invoice[]>(api.get('/billing/invoices')),
   plans: () => api.data<Plan[]>(api.get('/plans')),
+  // POST /subscriptions (not /subscriptions/change) — for a user with no
+  // existing subscription yet. Free plans activate immediately (no payment);
+  // paid plans return a checkoutUrl the caller must redirect to.
+  subscribe: (planId: string) => api.data<SubscribeResult>(api.post('/subscriptions', { planId })),
   changePlan: (planId: string) => api.data(api.post('/subscriptions/change', { planId })),
   cancel: () => api.data(api.post('/subscriptions/cancel', {})),
 };
