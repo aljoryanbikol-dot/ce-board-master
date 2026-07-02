@@ -8,8 +8,10 @@
       "back": "σ = P/A",
       "hint": "Force divided by area",
       "difficulty": "easy",
-      "tags": ["axial"],
-      "status": "draft"
+      "tags": [
+        "axial"
+      ],
+      "status": "published"
     },
     {
       "publicId": "FC-STRUC-MDB-002",
@@ -19,8 +21,10 @@
       "back": "δ = PL/(AE)",
       "hint": "Derived from Hooke's law: σ=Eε and ε=δ/L",
       "difficulty": "easy",
-      "tags": ["axial"],
-      "status": "draft"
+      "tags": [
+        "axial"
+      ],
+      "status": "published"
     },
     {
       "publicId": "FC-STRUC-MDB-003",
@@ -30,8 +34,10 @@
       "back": "J = πd⁴/32",
       "hint": "Compare to the rectangular I = bh³/12 — different shape, different formula",
       "difficulty": "easy",
-      "tags": ["torsion"],
-      "status": "draft"
+      "tags": [
+        "torsion"
+      ],
+      "status": "published"
     },
     {
       "publicId": "FC-STRUC-MDB-004",
@@ -41,8 +47,10 @@
       "back": "τ_max = 16T/(πd³)",
       "hint": "Substitute r=d/2 and J=πd⁴/32 into τ=Tr/J and simplify",
       "difficulty": "medium",
-      "tags": ["torsion"],
-      "status": "draft"
+      "tags": [
+        "torsion"
+      ],
+      "status": "published"
     },
     {
       "publicId": "FC-STRUC-MDB-005",
@@ -52,8 +60,10 @@
       "back": "Radians (must multiply by 180/π to convert to degrees)",
       "hint": "This is the single most common units mistake in torsion problems",
       "difficulty": "medium",
-      "tags": ["torsion"],
-      "status": "draft"
+      "tags": [
+        "torsion"
+      ],
+      "status": "published"
     },
     {
       "publicId": "FC-STRUC-MDB-006",
@@ -63,8 +73,10 @@
       "back": "σ = Mc/I; c is the distance from the neutral axis to the extreme (outer) fiber",
       "hint": "For a symmetric rectangular section, c = h/2",
       "difficulty": "easy",
-      "tags": ["flexure"],
-      "status": "draft"
+      "tags": [
+        "flexure"
+      ],
+      "status": "published"
     }
   ],
   "atomic": true

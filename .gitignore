@@ -52,3 +52,6 @@ docker-compose.override.yml
 tmp/
 temp/
 *.tsbuildinfo
+
+# Throwaway keys generated for local/CLI scripts
+apps/api/scripts/*.pem

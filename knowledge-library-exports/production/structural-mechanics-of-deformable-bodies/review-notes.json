@@ -7,8 +7,11 @@
       "title": "Axial Stress and Strain — quick review",
       "body": "**Normal stress:** $\\sigma = P/A$ (uniform, centroidal load only)\n\n**Axial deformation:** $\\delta = PL/(AE)$, equivalently $\\delta = \\varepsilon L$ where $\\varepsilon = \\sigma/E$ (Hooke's Law)\n\n**Multi-segment members:** $\\delta_{total} = \\sum P_iL_i/(A_iE_i)$ — sum with sign (tension positive, compression negative)\n\n**Statically indeterminate axial systems:** equilibrium alone is insufficient; add a compatibility (deformation) equation.\n\n**Common units:** N, mm, MPa (N/mm²) is the most convenient consistent set for board problems.",
       "examWeight": 15,
-      "tags": ["axial", "review"],
-      "status": "draft"
+      "tags": [
+        "axial",
+        "review"
+      ],
+      "status": "published"
     },
     {
       "publicId": "RN-STRUC-MDB-TORS-001",
@@ -17,8 +20,11 @@
       "title": "Torsion — quick review",
       "body": "**Polar moment of inertia (solid circular shaft):** $J = \\pi d^4/32$\n\n**Shear stress:** $\\tau = Tr/J$, maximum at the outer fiber: $\\tau_{max} = 16T/(\\pi d^3)$\n\n**Angle of twist:** $\\phi = TL/(JG)$ — result is in **radians**; convert to degrees by multiplying by $180/\\pi$\n\n**Power-torque relationship:** $T = 9549\\,P_{kW}/N_{rpm}$ (N·m)\n\n**Hollow shaft:** $J = \\pi(d_o^4 - d_i^4)/32$",
       "examWeight": 12,
-      "tags": ["torsion", "review"],
-      "status": "draft"
+      "tags": [
+        "torsion",
+        "review"
+      ],
+      "status": "published"
     },
     {
       "publicId": "RN-STRUC-MDB-FLEX-001",
@@ -27,8 +33,11 @@
       "title": "Flexural Stress — quick review",
       "body": "**Flexure formula:** $\\sigma = Mc/I$, where $c$ is the distance from the neutral axis to the extreme fiber\n\n**Rectangular section:** $I = bh^3/12$, $c = h/2$ (centroidal/symmetric section)\n\n**Finding the critical section:** locate the maximum $|M|$ from the shear and moment diagrams first; it occurs where the shear diagram crosses zero ($dM/dx = V$)\n\n**Unsymmetric sections:** check stress on both the tension and compression sides separately — $c$ may differ on each side.",
       "examWeight": 18,
-      "tags": ["flexure", "review"],
-      "status": "draft"
+      "tags": [
+        "flexure",
+        "review"
+      ],
+      "status": "published"
     }
   ],
   "atomic": true

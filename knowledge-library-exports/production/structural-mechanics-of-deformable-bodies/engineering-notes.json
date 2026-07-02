@@ -6,8 +6,12 @@
       "topicCode": "STRUC-MDB",
       "title": "Statically indeterminate axial members",
       "body": "When the number of unknown internal forces in an axially-loaded system exceeds the number of independent equilibrium equations, the system is statically indeterminate, and the deformation (compatibility) equation must be used together with equilibrium to solve for the unknown forces.\n\nA common board-exam case: a rigid bar supported by two or more axial members (rods/cables) of different stiffness $AE/L$ sharing a load. Equilibrium alone (sum of forces, sum of moments) gives fewer equations than unknowns. The missing equation comes from compatibility — the geometric requirement that the elongations of the members be consistent with the rigid bar remaining straight (or rotating about a hinge). Solve equilibrium and compatibility simultaneously; do not attempt to apportion load by inspection.\n\nA second common case is a bar fixed at both ends and loaded axially at an interior point: the two reaction forces are statically indeterminate of degree 1, resolved by requiring the total elongation of the bar (sum of both segments' deformation, accounting for sign) to equal zero.",
-      "tags": ["statically indeterminate", "compatibility", "axial"],
-      "status": "draft"
+      "tags": [
+        "statically indeterminate",
+        "compatibility",
+        "axial"
+      ],
+      "status": "published"
     },
     {
       "publicId": "EN-STRUC-MDB-TORS-001",
@@ -15,8 +19,12 @@
       "topicCode": "STRUC-MDB",
       "title": "Power-torque relationship for rotating shafts",
       "body": "Board problems on shaft design frequently give transmitted power and rotational speed instead of torque directly. The relationship is:\n\n$$P = T\\omega = \\frac{2\\pi NT}{60}$$\n\nwhere $P$ is power (W), $T$ is torque (N·m), $\\omega$ is angular velocity (rad/s), and $N$ is rotational speed (rpm). Rearranged for torque: $T = \\dfrac{60P}{2\\pi N} = \\dfrac{9549\\,P\\text{(kW)}}{N\\text{(rpm)}}$ N·m.\n\nAlways convert horsepower to watts (1 hp = 745.7 W) before applying this relationship if the problem statement uses hp, and convert the resulting torque to consistent units (N·mm if working with stress in MPa and dimensions in mm) before applying $\\tau = Tr/J$.",
-      "tags": ["torsion", "power transmission", "unit conversion"],
-      "status": "draft"
+      "tags": [
+        "torsion",
+        "power transmission",
+        "unit conversion"
+      ],
+      "status": "published"
     },
     {
       "publicId": "EN-STRUC-MDB-FLEX-001",
@@ -24,8 +32,12 @@
       "topicCode": "STRUC-MDB",
       "title": "Locating the critical section before applying the flexure formula",
       "body": "The flexure formula $\\sigma = Mc/I$ gives the stress at a single section. Before applying it, the maximum bending moment along the beam — and its location — must be determined from the shear and moment diagrams; do not assume the maximum moment occurs at midspan unless the loading and supports are symmetric.\n\nFor a simply supported beam under a single concentrated load not at midspan, the maximum moment occurs under the load. For a beam with multiple loads or a combination of point loads and distributed loads, the maximum moment occurs where the shear diagram crosses zero (since $dM/dx = V$); check every such location, since there can be more than one local maximum and the global maximum may not be the most visually obvious one.\n\nFor unsymmetric cross-sections, $c$ may differ on the tension and compression sides — compute and check the stress on both sides, since the side with the larger $c$ governs for that material's allowable stress in that mode (tension vs. compression), which need not be the same value for materials like cast iron or concrete.",
-      "tags": ["flexure", "shear and moment diagrams", "critical section"],
-      "status": "draft"
+      "tags": [
+        "flexure",
+        "shear and moment diagrams",
+        "critical section"
+      ],
+      "status": "published"
     }
   ],
   "atomic": true

@@ -8,9 +8,17 @@
       "summary": "How a centroidal axial load produces uniform normal stress and elastic elongation in a prismatic member.",
       "body": "When an axial force $P$ acts along the centroidal axis of a prismatic member, the internal normal stress is assumed uniform over the cross-section: $\\sigma = \\frac{P}{A}$.\n\nWithin the proportional (elastic) limit, stress and strain are related by Hooke's Law, $\\sigma = E\\varepsilon$, where $E$ is the modulus of elasticity. Since axial strain is $\\varepsilon = \\delta/L$, combining the two relations gives the axial deformation formula:\n\n$$\\delta = \\frac{PL}{AE}$$\n\nThis is valid only while the member remains in the linear-elastic range (stress below the proportional limit) and only away from points of load application or abrupt changes in cross-section, where stress concentrations violate the uniform-stress assumption (Saint-Venant's principle).\n\nFor a member with several segments of different $P$, $A$, or $E$ (e.g., a stepped shaft, or a bar loaded at multiple points), the total deformation is the algebraic sum of the deformation of each segment: $\\delta = \\sum \\frac{P_iL_i}{A_iE_i}$.",
       "bloomLevel": "understand",
-      "keywords": ["axial stress", "axial strain", "Hooke's law", "elastic deformation"],
-      "relatedFormulaSlugs": ["normal-axial-stress", "axial-deformation"],
-      "status": "draft"
+      "keywords": [
+        "axial stress",
+        "axial strain",
+        "Hooke's law",
+        "elastic deformation"
+      ],
+      "relatedFormulaSlugs": [
+        "normal-axial-stress",
+        "axial-deformation"
+      ],
+      "status": "published"
     },
     {
       "publicId": "CON-STRUC-MDB-TORS-001",
@@ -20,9 +28,18 @@
       "summary": "How an applied torque produces shear stress that varies linearly with radius, and the resulting angle of twist.",
       "body": "A torque $T$ applied to a circular shaft produces shear stress that varies linearly from zero at the centroidal axis to a maximum at the outer surface:\n\n$$\\tau = \\frac{Tr}{J}$$\n\nwhere $J$ is the polar moment of inertia of the cross-section ($J = \\pi d^4/32$ for a solid circular shaft of diameter $d$). The maximum shear stress occurs at $r = d/2$ (the outer fiber), giving the equivalent closed form $\\tau_{max} = \\dfrac{16T}{\\pi d^3}$.\n\nThe corresponding angle of twist between the two ends of a shaft of length $L$ is:\n\n$$\\phi = \\frac{TL}{JG}$$\n\nwhere $G$ is the shear modulus of elasticity. This theory assumes the cross-section is circular (solid or hollow) — non-circular sections warp out of plane under torsion and require a different (more advanced) analysis.\n\nLike the axial case, for shafts with multiple segments of different $T$, $J$, or $G$, the total angle of twist is the sum of each segment's contribution.",
       "bloomLevel": "understand",
-      "keywords": ["torsion", "polar moment of inertia", "angle of twist", "shear stress"],
-      "relatedFormulaSlugs": ["polar-moment-of-inertia-solid-circular-section", "torsional-shear-stress", "angle-of-twist"],
-      "status": "draft"
+      "keywords": [
+        "torsion",
+        "polar moment of inertia",
+        "angle of twist",
+        "shear stress"
+      ],
+      "relatedFormulaSlugs": [
+        "polar-moment-of-inertia-solid-circular-section",
+        "torsional-shear-stress",
+        "angle-of-twist"
+      ],
+      "status": "published"
     },
     {
       "publicId": "CON-STRUC-MDB-FLEX-001",
@@ -32,9 +49,17 @@
       "summary": "How an internal bending moment produces a linear normal-stress distribution through the depth of a beam, the basis of the flexure formula.",
       "body": "Under the Euler-Bernoulli assumption that plane sections remain plane and perpendicular to the neutral axis after bending, longitudinal strain varies linearly with distance $y$ from the neutral axis. Combined with Hooke's law, this gives a normal-stress distribution that is also linear through the depth of the section, compressive on one side and tensile on the other, zero at the neutral axis.\n\nEquilibrium of this stress distribution with the internal bending moment $M$ gives the **flexure formula**:\n\n$$\\sigma = \\frac{Mc}{I}$$\n\nwhere $I$ is the moment of inertia of the cross-section about the neutral axis, and $c$ is the distance from the neutral axis to the extreme (outer) fiber where stress is maximum. For a rectangular section of width $b$ and depth $h$, $I = bh^3/12$ and $c = h/2$.\n\nThe flexure formula requires the neutral axis to pass through the section's centroid, which holds for pure bending of a homogeneous, doubly-symmetric (or singly-symmetric and bent about its axis of symmetry) cross-section. It does not directly apply to composite or unsymmetric sections without modification.",
       "bloomLevel": "understand",
-      "keywords": ["flexure formula", "bending stress", "neutral axis", "moment of inertia"],
-      "relatedFormulaSlugs": ["moment-of-inertia-rectangular-section", "flexure-formula-bending-stress"],
-      "status": "draft"
+      "keywords": [
+        "flexure formula",
+        "bending stress",
+        "neutral axis",
+        "moment of inertia"
+      ],
+      "relatedFormulaSlugs": [
+        "moment-of-inertia-rectangular-section",
+        "flexure-formula-bending-stress"
+      ],
+      "status": "published"
     }
   ],
   "atomic": true
