@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Flag, ChevronLeft, ChevronRight, Clock, Send } from 'lucide-react';
 import { examsApi } from '../api/exams-api';
@@ -29,6 +29,11 @@ export function ExamRunner({ examId }: { examId: string }) {
   const [flags, setFlags] = useState<Set<string>>(new Set());
   const [remaining, setRemaining] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
+  // Wall-clock deadline, not a tick counter — setInterval alone drifts (browsers
+  // throttle/suspend timers on backgrounded tabs), which could show a student
+  // minutes of "remaining" time after the real deadline already passed.
+  // remaining is always recomputed from this fixed timestamp, never decremented.
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -49,8 +54,12 @@ export function ExamRunner({ examId }: { examId: string }) {
           diagram: (q.diagram as DiagramImageData | null) ?? null,
         }));
         const durationMinutes = Number((meta as { durationMinutes?: number } | null)?.durationMinutes ?? (qsRaw as { durationMinutes?: number })?.durationMinutes ?? 60);
+        // Prefer the server-authoritative expiry (it already clamps actual
+        // scoring server-side); fall back to computing one locally from
+        // durationMinutes only if the API didn't return one.
+        const serverExpiresAt = (meta as { timer?: { expiresAt?: string | null } } | null)?.timer?.expiresAt;
         setExam({ examId, durationMinutes, questions });
-        setRemaining(durationMinutes * 60);
+        setExpiresAt(serverExpiresAt ? new Date(serverExpiresAt).getTime() : Date.now() + durationMinutes * 60_000);
       } catch (err) {
         toast.fromError(err, 'Could not load the exam');
         router.replace('/exams');
@@ -59,7 +68,13 @@ export function ExamRunner({ examId }: { examId: string }) {
     return () => { active = false; };
   }, [examId, router]);
 
+  const submitInFlight = useRef(false);
   const submit = useCallback(async () => {
+    // Guards against duplicate submits — the timer tick fires every second
+    // (and on every visibilitychange) once the deadline passes, and would
+    // otherwise call submit() repeatedly.
+    if (submitInFlight.current) return;
+    submitInFlight.current = true;
     setSubmitting(true);
     try {
       await examsApi.submit(examId);
@@ -68,15 +83,33 @@ export function ExamRunner({ examId }: { examId: string }) {
     } catch (err) {
       toast.fromError(err, 'Could not submit the exam');
       setSubmitting(false);
+      submitInFlight.current = false;
     }
   }, [examId, router]);
 
-  // Countdown timer with auto-submit at zero.
+  // Countdown timer with auto-submit at zero. Recomputes from the fixed
+  // `expiresAt` wall-clock deadline every tick (not decremented), and
+  // resyncs immediately when the tab regains visibility — a plain
+  // decrementing setInterval drifts arbitrarily when the tab is
+  // backgrounded/suspended, which could show minutes remaining after the
+  // real deadline already passed.
   useEffect(() => {
-    if (!exam || remaining <= 0) return;
-    const t = setInterval(() => setRemaining((r) => { if (r <= 1) { clearInterval(t); void submit(); return 0; } return r - 1; }), 1000);
-    return () => clearInterval(t);
-  }, [exam, remaining, submit]);
+    if (!exam || expiresAt === null) return;
+
+    const tick = () => {
+      const secLeft = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+      setRemaining(secLeft);
+      if (secLeft <= 0) void submit();
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [exam, expiresAt, submit]);
 
   async function choose(eqId: string, choice: string) {
     setAnswers((a) => ({ ...a, [eqId]: choice }));
@@ -87,7 +120,7 @@ export function ExamRunner({ examId }: { examId: string }) {
   async function toggleFlag(eqId: string) {
     const next = new Set(flags);
     const willFlag = !next.has(eqId);
-    willFlag ? next.add(eqId) : next.delete(eqId);
+    if (willFlag) next.add(eqId); else next.delete(eqId);
     setFlags(next);
     try { await examsApi.answer(examId, { examQuestionId: eqId, flagged: willFlag }); } catch { /* non-blocking */ }
   }

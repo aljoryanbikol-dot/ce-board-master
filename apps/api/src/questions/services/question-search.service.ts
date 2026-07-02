@@ -26,7 +26,17 @@ import type { CreateQuestionDto, UpdateQuestionDto } from '../dto/question.dto';
 import type { QuestionListResult, VersionEntry } from '../types/questions.types';
 import type { AuthenticatedUser } from '../../auth/auth.types';
 
-const SUMMARY_INCLUDE = { questionTags: { select: { tagId: true } } } as const;
+/** Exactly the fields QuestionMapperService.toSummary() reads — the list/
+ * search endpoint doesn't need stemLatex/stemHtml/explanationText/explanationLatex/
+ * explanationHtml/learningObjective, which were previously fetched in full
+ * (via `include`, which pulls every column) for every row on every search. */
+const SUMMARY_SELECT = {
+  id: true, questionCode: true, subjectId: true, topicId: true, subtopicId: true,
+  difficultyLevelId: true, stemText: true, questionStatus: true, bloomLevel: true,
+  questionType: true, authorId: true, reviewerId: true, currentVersion: true,
+  isAiGenerated: true, publishedAt: true, createdAt: true, updatedAt: true,
+  questionTags: { select: { tagId: true } },
+} as const;
 
 @Injectable()
 export class QuestionSearchService {
@@ -52,7 +62,7 @@ export class QuestionSearchService {
 
     const [rows, total] = await Promise.all([
       this.prisma.question.findMany({
-        where, include: SUMMARY_INCLUDE, orderBy: { id: 'asc' }, take: query.limit + 1,
+        where, select: SUMMARY_SELECT, orderBy: { id: 'asc' }, take: query.limit + 1,
       }),
       this.prisma.question.count({ where }),
     ]);
@@ -64,7 +74,8 @@ export class QuestionSearchService {
     const diagramsByCode = await this.diagrams.resolveMany(page.map((q: (typeof page)[number]) => q.questionCode));
 
     const result: QuestionListResult = {
-      data: page.map((q: (typeof page)[number]) => this.mapper.toSummary(q, q.questionTags.map((t: { tagId: string }) => t.tagId), diagramsByCode.get(q.questionCode) ?? null)),
+      // toSummary only reads the fields in SUMMARY_SELECT above — cast is safe.
+      data: page.map((q: (typeof page)[number]) => this.mapper.toSummary(q as never, q.questionTags.map((t: { tagId: string }) => t.tagId), diagramsByCode.get(q.questionCode) ?? null)),
       pagination: { cursor, hasMore, total },
     };
     await this.cache.set(cacheKey, result, QUESTION_LIST_CACHE_TTL);

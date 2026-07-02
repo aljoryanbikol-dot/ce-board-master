@@ -6,7 +6,8 @@
  * losing vector sharpness); click to view at full size without upscaling
  * artifacts. Shows caption/alt text beneath when present.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 
 export interface DiagramImageData {
   publicId: string;
@@ -19,11 +20,30 @@ export interface DiagramImageData {
 
 export function DiagramImage({ diagram, className }: { diagram?: DiagramImageData | null; className?: string }) {
   const [expanded, setExpanded] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard-only users can open the lightbox but were previously unable to
+  // close it (no Escape handler) or reach it via focus (no focus management) —
+  // move focus into the dialog on open, restore it to the trigger on close.
+  useEffect(() => {
+    if (!expanded) return;
+    dialogRef.current?.focus();
+    const trigger = triggerRef.current;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') setExpanded(false); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      trigger?.focus();
+    };
+  }, [expanded]);
+
   if (!diagram) return null;
 
   return (
     <figure className={`my-3 ${className ?? ''}`}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setExpanded(true)}
         className="block w-full cursor-zoom-in rounded-md border bg-white p-2"
@@ -41,12 +61,22 @@ export function DiagramImage({ diagram, className }: { diagram?: DiagramImageDat
 
       {expanded && (
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label={diagram.title}
-          className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/80 p-6"
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/80 p-6 outline-none"
           onClick={() => setExpanded(false)}
         >
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setExpanded(false); }}
+            aria-label="Close"
+            className="absolute right-4 top-4 rounded-full bg-black/40 p-2 text-white hover:bg-black/60"
+          >
+            <X className="h-5 w-5" />
+          </button>
           {/* eslint-disable-next-line @next/next/no-img-element -- SVG data URIs aren't compatible with next/image optimization */}
           <img
             src={diagram.imageUrl}

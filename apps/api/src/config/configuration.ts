@@ -152,5 +152,18 @@ export default (): AppEnvironment => {
   data.APP_URL ??= data.FRONTEND_URL;
   data.ADMIN_URL ??= data.FRONTEND_URL;
 
+  // Fail fast rather than silently accepting fake "payment succeeded" events
+  // in production — the mock provider's webhook secret is a fixed, public
+  // string in source (mock-payment.provider.ts), so it must never be live
+  // outside development/test.
+  if (data.NODE_ENV === 'production' && data.PAYMENT_DEFAULT_PROVIDER === 'mock') {
+    throw new Error(
+      '\n\n❌ PAYMENT_DEFAULT_PROVIDER is "mock" in production.\n' +
+        'Set it to "paymongo" or "xendit" — the mock provider\'s webhook secret ' +
+        'is public (checked into source), so leaving it active in production ' +
+        'lets anyone forge a valid "payment succeeded" webhook.\n',
+    );
+  }
+
   return data;
 };

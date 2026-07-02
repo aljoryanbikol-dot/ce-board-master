@@ -220,21 +220,21 @@ export default function PlatformAnalyticsPage() {
         </Card>
       </div>
 
-      {revenue.data ? (
-        <Card className="mt-6">
-          <CardHeader><CardTitle>Revenue by plan</CardTitle></CardHeader>
-          <CardContent>
+      <Card className="mt-6">
+        <CardHeader><CardTitle>Revenue by plan</CardTitle></CardHeader>
+        <CardContent>
+          <QueryBoundary isLoading={revenue.isLoading} isError={revenue.isError} error={revenue.error} isEmpty={(revenue.data?.byPlan ?? []).length === 0} emptyTitle="No active subscriptions yet">
             <ul className="divide-y">
-              {revenue.data.byPlan.map((p) => (
+              {(revenue.data?.byPlan ?? []).map((p) => (
                 <li key={p.planId} className="flex items-center justify-between py-3 text-sm">
                   <span>{p.name} <span className="text-muted-foreground">· {p.subscriberCount} subscribers</span></span>
                   <span className="font-mono font-medium">{formatMoney(p.mrrMinor)}/mo</span>
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
-      ) : null}
+          </QueryBoundary>
+        </CardContent>
+      </Card>
     </div>
   );
 }

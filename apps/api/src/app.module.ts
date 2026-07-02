@@ -19,7 +19,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 
 // Infrastructure Modules
@@ -87,6 +87,15 @@ import type { AppEnvironment } from './config/configuration';
             ttl: 60_000,
             limit: config.get('RATE_LIMIT_GLOBAL', { infer: true })!,
           },
+          // Tighter window for brute-force-sensitive auth endpoints
+          // (login, register, password reset, MFA) — opt in per-route via
+          // @Throttle({ auth: { limit, ttl } }), falls back to 'global' above
+          // for every other route.
+          {
+            name: 'auth',
+            ttl: 60_000,
+            limit: 10,
+          },
         ],
       }),
     }),
@@ -125,6 +134,15 @@ import type { AppEnvironment } from './config/configuration';
   ],
 
   providers: [
+    // ── Global Rate-Limit Guard ─────────────────────────────────────────────
+    // ThrottlerModule only registers the throttler *storage/config* — without
+    // this guard bound, @Throttle()/the default 'global' limit are never
+    // actually enforced on any route. Registered first so unauthenticated
+    // floods are rejected before JwtAuthGuard does any work.
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     // ── Global JWT Authentication Guard ────────────────────────────────────
     // Registered here (not in AuthModule) so it applies to ALL modules globally.
     // Routes use @Public() to opt out of authentication.

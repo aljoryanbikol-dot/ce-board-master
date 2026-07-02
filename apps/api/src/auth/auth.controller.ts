@@ -71,6 +71,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import '@fastify/cookie'; // activates FastifyReply.setCookie / FastifyRequest.cookies type augmentation
 
@@ -142,6 +143,7 @@ export class AuthController {
   // ════════════════════════════════════════════════════════════════════════════
 
   @Public()
+  @Throttle({ auth: { limit: 10, ttl: 60_000 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -187,6 +189,7 @@ export class AuthController {
   // ════════════════════════════════════════════════════════════════════════════
 
   @Public()
+  @Throttle({ auth: { limit: 5, ttl: 60_000 } })
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -208,6 +211,7 @@ export class AuthController {
   // ════════════════════════════════════════════════════════════════════════════
 
   @Public()
+  @Throttle({ auth: { limit: 10, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -344,6 +348,7 @@ export class AuthController {
   // ════════════════════════════════════════════════════════════════════════════
 
   @Public()
+  @Throttle({ auth: { limit: 5, ttl: 60_000 } })
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -365,6 +370,7 @@ export class AuthController {
   // ════════════════════════════════════════════════════════════════════════════
 
   @Public()
+  @Throttle({ auth: { limit: 10, ttl: 60_000 } })
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

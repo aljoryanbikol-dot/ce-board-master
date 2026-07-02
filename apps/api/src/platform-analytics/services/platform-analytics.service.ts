@@ -19,12 +19,19 @@
  */
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { CacheService, CacheNamespace, CacheTTL } from '../../cache/cache.service';
 import { SubscriptionStatus, PlanInterval } from '@prisma/client';
 import type { PlatformAnalyticsQueryDto } from '../dto/platform-analytics.dto';
 
 const LIVE_SUB_STATUSES = [
   SubscriptionStatus.trialing, SubscriptionStatus.active, SubscriptionStatus.past_due, SubscriptionStatus.grace,
 ];
+
+/** Bounds the "hardest questions/topics" and "subject performance" scans —
+ * these previously ran with no date filter at all (a true full-table scan
+ * that gets slower forever as attempts accumulate). A year is generous for
+ * "what's hard right now" while keeping the query bounded. */
+const PERFORMANCE_WINDOW_DAYS = 365;
 
 /** Normalizes any billing interval to a monthly-equivalent multiplier for MRR. */
 const MONTHLY_EQUIVALENT: Partial<Record<PlanInterval, number>> = {
@@ -35,11 +42,22 @@ const MONTHLY_EQUIVALENT: Partial<Record<PlanInterval, number>> = {
 
 @Injectable()
 export class PlatformAnalyticsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
+
+  private key(name: string, ...parts: (string | number)[]): string {
+    return this.cache.buildKey(CacheNamespace.DASHBOARD, ['platform', name, ...parts].join(':'));
+  }
 
   // ── Overview ────────────────────────────────────────────────────────────────
 
   async overview() {
+    return this.cache.remember(this.key('overview'), CacheTTL.DASHBOARD, () => this.buildOverview());
+  }
+
+  private async buildOverview() {
     const [totalUsers, premiumUsers, totalQuestionsAnswered, examsStarted, examsCompleted, tutorConversations, revenue] = await Promise.all([
       this.prisma.user.count({ where: { deletedAt: null } }),
       this.prisma.subscription.count({ where: { status: { in: LIVE_SUB_STATUSES }, plan: { tier: { not: 'free' } } } }),
@@ -60,32 +78,40 @@ export class PlatformAnalyticsService {
   // ── User growth ─────────────────────────────────────────────────────────────
 
   async userGrowth(dto: PlatformAnalyticsQueryDto) {
-    const since = new Date(Date.now() - dto.days * 86_400_000);
-    const users = await this.prisma.user.findMany({ where: { createdAt: { gte: since }, deletedAt: null }, select: { createdAt: true } });
-    return this.bucketCounts(users.map((u: { createdAt: Date }) => u.createdAt), dto.period);
+    return this.cache.remember(this.key('user-growth', dto.period, dto.days), CacheTTL.DASHBOARD, async () => {
+      const since = new Date(Date.now() - dto.days * 86_400_000);
+      const users = await this.prisma.user.findMany({ where: { createdAt: { gte: since }, deletedAt: null }, select: { createdAt: true } });
+      return this.bucketCounts(users.map((u: { createdAt: Date }) => u.createdAt), dto.period);
+    });
   }
 
   // ── Active users (DAU/WAU/MAU proxy — see file docblock) ────────────────────
 
   async activeUsers(dto: PlatformAnalyticsQueryDto) {
-    const since = new Date(Date.now() - dto.days * 86_400_000);
-    const attempts = await this.prisma.questionAttempt.findMany({
-      where: { attemptedAt: { gte: since } }, select: { userId: true, attemptedAt: true },
+    return this.cache.remember(this.key('active-users', dto.period, dto.days), CacheTTL.DASHBOARD, async () => {
+      const since = new Date(Date.now() - dto.days * 86_400_000);
+      const attempts = await this.prisma.questionAttempt.findMany({
+        where: { attemptedAt: { gte: since } }, select: { userId: true, attemptedAt: true },
+      });
+      const byBucket = new Map<string, Set<string>>();
+      for (const a of attempts) {
+        const key = this.bucketKey(a.attemptedAt, dto.period);
+        if (!byBucket.has(key)) byBucket.set(key, new Set());
+        byBucket.get(key)!.add(a.userId);
+      }
+      return Array.from(byBucket.entries())
+        .map(([date, users]) => ({ date, activeUsers: users.size }))
+        .sort((a, b) => a.date.localeCompare(b.date));
     });
-    const byBucket = new Map<string, Set<string>>();
-    for (const a of attempts) {
-      const key = this.bucketKey(a.attemptedAt, dto.period);
-      if (!byBucket.has(key)) byBucket.set(key, new Set());
-      byBucket.get(key)!.add(a.userId);
-    }
-    return Array.from(byBucket.entries())
-      .map(([date, users]) => ({ date, activeUsers: users.size }))
-      .sort((a, b) => a.date.localeCompare(b.date));
   }
 
   // ── Free vs Premium split ────────────────────────────────────────────────────
 
   async tierSplit() {
+    return this.cache.remember(this.key('tier-split'), CacheTTL.DASHBOARD, () => this.buildTierSplit());
+  }
+
+  private async buildTierSplit() {
     const [totalUsers, byTier] = await Promise.all([
       this.prisma.user.count({ where: { deletedAt: null } }),
       this.prisma.subscription.groupBy({
@@ -104,6 +130,10 @@ export class PlatformAnalyticsService {
   // ── Revenue ──────────────────────────────────────────────────────────────────
 
   async revenue(days = 30) {
+    return this.cache.remember(this.key('revenue', days), CacheTTL.DASHBOARD, () => this.buildRevenue(days));
+  }
+
+  private async buildRevenue(days: number) {
     const since = new Date(Date.now() - days * 86_400_000);
     const [totalAgg, liveSubs, canceledInWindow] = await Promise.all([
       this.prisma.payment.aggregate({ where: { status: 'succeeded', paidAt: { gte: since } }, _sum: { amountMinor: true } }),
@@ -142,83 +172,102 @@ export class PlatformAnalyticsService {
   // ── Question usage (platform-wide) ───────────────────────────────────────────
 
   async questionUsage(dto: PlatformAnalyticsQueryDto) {
-    const since = new Date(Date.now() - dto.days * 86_400_000);
-    const attempts = await this.prisma.questionAttempt.findMany({ where: { attemptedAt: { gte: since } }, select: { attemptedAt: true } });
-    return this.bucketCounts(attempts.map((a: { attemptedAt: Date }) => a.attemptedAt), dto.period);
+    return this.cache.remember(this.key('question-usage', dto.period, dto.days), CacheTTL.DASHBOARD, async () => {
+      const since = new Date(Date.now() - dto.days * 86_400_000);
+      const attempts = await this.prisma.questionAttempt.findMany({ where: { attemptedAt: { gte: since } }, select: { attemptedAt: true } });
+      return this.bucketCounts(attempts.map((a: { attemptedAt: Date }) => a.attemptedAt), dto.period);
+    });
   }
 
   // ── Mock exam usage (platform-wide) ──────────────────────────────────────────
 
   async examUsage(dto: PlatformAnalyticsQueryDto) {
-    const since = new Date(Date.now() - dto.days * 86_400_000);
-    const [started, completed] = await Promise.all([
-      this.prisma.mockExam.findMany({ where: { startedAt: { gte: since } }, select: { startedAt: true } }),
-      this.prisma.mockExam.findMany({ where: { submittedAt: { gte: since } }, select: { submittedAt: true } }),
-    ]);
-    const startedBuckets = this.bucketCounts(started.map((s: { startedAt: Date | null }) => s.startedAt!), dto.period);
-    const completedByDate = new Map(this.bucketCounts(completed.map((c: { submittedAt: Date | null }) => c.submittedAt!), dto.period).map((b) => [b.date, b.count]));
-    return startedBuckets.map((b) => ({ date: b.date, started: b.count, completed: completedByDate.get(b.date) ?? 0 }));
+    return this.cache.remember(this.key('exam-usage', dto.period, dto.days), CacheTTL.DASHBOARD, async () => {
+      const since = new Date(Date.now() - dto.days * 86_400_000);
+      const [started, completed] = await Promise.all([
+        this.prisma.mockExam.findMany({ where: { startedAt: { gte: since } }, select: { startedAt: true } }),
+        this.prisma.mockExam.findMany({ where: { submittedAt: { gte: since } }, select: { submittedAt: true } }),
+      ]);
+      const startedBuckets = this.bucketCounts(started.map((s: { startedAt: Date | null }) => s.startedAt!), dto.period);
+      const completedByDate = new Map(this.bucketCounts(completed.map((c: { submittedAt: Date | null }) => c.submittedAt!), dto.period).map((b) => [b.date, b.count]));
+      return startedBuckets.map((b) => ({ date: b.date, started: b.count, completed: completedByDate.get(b.date) ?? 0 }));
+    });
   }
 
   // ── AI Tutor usage (platform-wide) ───────────────────────────────────────────
 
   async aiTutorUsage(dto: PlatformAnalyticsQueryDto) {
-    const since = new Date(Date.now() - dto.days * 86_400_000);
-    const [conversations, messages] = await Promise.all([
-      this.prisma.tutorConversation.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true } }),
-      this.prisma.tutorMessage.findMany({ where: { createdAt: { gte: since }, role: 'user' }, select: { createdAt: true } }),
-    ]);
-    const convBuckets = this.bucketCounts(conversations.map((c: { createdAt: Date }) => c.createdAt), dto.period);
-    const msgByDate = new Map(this.bucketCounts(messages.map((m: { createdAt: Date }) => m.createdAt), dto.period).map((b) => [b.date, b.count]));
-    return convBuckets.map((b) => ({ date: b.date, conversations: b.count, messages: msgByDate.get(b.date) ?? 0 }));
+    return this.cache.remember(this.key('ai-tutor-usage', dto.period, dto.days), CacheTTL.DASHBOARD, async () => {
+      const since = new Date(Date.now() - dto.days * 86_400_000);
+      const [conversations, messages] = await Promise.all([
+        this.prisma.tutorConversation.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true } }),
+        this.prisma.tutorMessage.findMany({ where: { createdAt: { gte: since }, role: 'user' }, select: { createdAt: true } }),
+      ]);
+      const convBuckets = this.bucketCounts(conversations.map((c: { createdAt: Date }) => c.createdAt), dto.period);
+      const msgByDate = new Map(this.bucketCounts(messages.map((m: { createdAt: Date }) => m.createdAt), dto.period).map((b) => [b.date, b.count]));
+      return convBuckets.map((b) => ({ date: b.date, conversations: b.count, messages: msgByDate.get(b.date) ?? 0 }));
+    });
   }
 
   // ── Subject performance (platform-wide) ──────────────────────────────────────
 
   async subjectPerformance() {
-    const rows = await this.prisma.questionAttempt.groupBy({ by: ['subjectId'], _count: { _all: true } });
-    const correctRows = await this.prisma.questionAttempt.groupBy({ by: ['subjectId'], where: { isCorrect: true }, _count: { _all: true } });
-    const correctBySubject = new Map((correctRows as { subjectId: string; _count: { _all: number } }[]).map((r) => [r.subjectId, r._count._all]));
-    return (rows as { subjectId: string; _count: { _all: number } }[])
-      .map((r) => ({ subjectId: r.subjectId, attempts: r._count._all, accuracy: r._count._all ? (correctBySubject.get(r.subjectId) ?? 0) / r._count._all : 0 }))
-      .sort((a, b) => a.accuracy - b.accuracy);
+    return this.cache.remember(this.key('subject-performance'), CacheTTL.DASHBOARD, async () => {
+      const since = new Date(Date.now() - PERFORMANCE_WINDOW_DAYS * 86_400_000);
+      const rows = await this.prisma.questionAttempt.groupBy({ by: ['subjectId'], where: { attemptedAt: { gte: since } }, _count: { _all: true } });
+      const correctRows = await this.prisma.questionAttempt.groupBy({ by: ['subjectId'], where: { isCorrect: true, attemptedAt: { gte: since } }, _count: { _all: true } });
+      const correctBySubject = new Map((correctRows as { subjectId: string; _count: { _all: number } }[]).map((r) => [r.subjectId, r._count._all]));
+      return (rows as { subjectId: string; _count: { _all: number } }[])
+        .map((r) => ({ subjectId: r.subjectId, attempts: r._count._all, accuracy: r._count._all ? (correctBySubject.get(r.subjectId) ?? 0) / r._count._all : 0 }))
+        .sort((a, b) => a.accuracy - b.accuracy);
+    });
   }
 
   // ── Hardest questions / topics ───────────────────────────────────────────────
 
   async hardestQuestions(limit: number) {
-    const rows = await this.prisma.questionAttempt.groupBy({
-      by: ['questionId'], _count: { _all: true }, having: { questionId: { _count: { gte: 5 } } },
+    return this.cache.remember(this.key('hardest-questions', limit), CacheTTL.DASHBOARD, async () => {
+      const since = new Date(Date.now() - PERFORMANCE_WINDOW_DAYS * 86_400_000);
+      const rows = await this.prisma.questionAttempt.groupBy({
+        by: ['questionId'], where: { attemptedAt: { gte: since } }, _count: { _all: true }, having: { questionId: { _count: { gte: 5 } } },
+      });
+      const correctRows = await this.prisma.questionAttempt.groupBy({ by: ['questionId'], where: { isCorrect: true, attemptedAt: { gte: since } }, _count: { _all: true } });
+      const correctByQuestion = new Map((correctRows as { questionId: string; _count: { _all: number } }[]).map((r) => [r.questionId, r._count._all]));
+      const ranked = (rows as { questionId: string; _count: { _all: number } }[])
+        .map((r) => ({ questionId: r.questionId, attempts: r._count._all, accuracy: (correctByQuestion.get(r.questionId) ?? 0) / r._count._all }))
+        .sort((a, b) => a.accuracy - b.accuracy)
+        .slice(0, limit);
+      const questions = await this.prisma.question.findMany({
+        where: { id: { in: ranked.map((r) => r.questionId) } }, select: { id: true, questionCode: true, stemText: true, subjectId: true },
+      });
+      const byId = new Map(questions.map((q: { id: string; questionCode: string; stemText: string; subjectId: string }) => [q.id, q]));
+      return ranked.map((r) => ({ ...r, questionCode: byId.get(r.questionId)?.questionCode ?? null, stemText: byId.get(r.questionId)?.stemText?.slice(0, 160) ?? null, subjectId: byId.get(r.questionId)?.subjectId ?? null }));
     });
-    const correctRows = await this.prisma.questionAttempt.groupBy({ by: ['questionId'], where: { isCorrect: true }, _count: { _all: true } });
-    const correctByQuestion = new Map((correctRows as { questionId: string; _count: { _all: number } }[]).map((r) => [r.questionId, r._count._all]));
-    const ranked = (rows as { questionId: string; _count: { _all: number } }[])
-      .map((r) => ({ questionId: r.questionId, attempts: r._count._all, accuracy: (correctByQuestion.get(r.questionId) ?? 0) / r._count._all }))
-      .sort((a, b) => a.accuracy - b.accuracy)
-      .slice(0, limit);
-    const questions = await this.prisma.question.findMany({
-      where: { id: { in: ranked.map((r) => r.questionId) } }, select: { id: true, questionCode: true, stemText: true, subjectId: true },
-    });
-    const byId = new Map(questions.map((q: { id: string; questionCode: string; stemText: string; subjectId: string }) => [q.id, q]));
-    return ranked.map((r) => ({ ...r, questionCode: byId.get(r.questionId)?.questionCode ?? null, stemText: byId.get(r.questionId)?.stemText?.slice(0, 160) ?? null, subjectId: byId.get(r.questionId)?.subjectId ?? null }));
   }
 
   async hardestTopics(limit: number) {
-    const rows = await this.prisma.questionAttempt.groupBy({
-      by: ['topicId'], _count: { _all: true }, having: { topicId: { _count: { gte: 10 } } },
+    return this.cache.remember(this.key('hardest-topics', limit), CacheTTL.DASHBOARD, async () => {
+      const since = new Date(Date.now() - PERFORMANCE_WINDOW_DAYS * 86_400_000);
+      const rows = await this.prisma.questionAttempt.groupBy({
+        by: ['topicId'], where: { attemptedAt: { gte: since } }, _count: { _all: true }, having: { topicId: { _count: { gte: 10 } } },
+      });
+      const correctRows = await this.prisma.questionAttempt.groupBy({ by: ['topicId'], where: { isCorrect: true, attemptedAt: { gte: since } }, _count: { _all: true } });
+      const correctByTopic = new Map((correctRows as { topicId: string | null; _count: { _all: number } }[]).map((r) => [r.topicId, r._count._all]));
+      return (rows as { topicId: string | null; _count: { _all: number } }[])
+        .filter((r) => r.topicId !== null)
+        .map((r) => ({ topicId: r.topicId as string, attempts: r._count._all, accuracy: (correctByTopic.get(r.topicId) ?? 0) / r._count._all }))
+        .sort((a, b) => a.accuracy - b.accuracy)
+        .slice(0, limit);
     });
-    const correctRows = await this.prisma.questionAttempt.groupBy({ by: ['topicId'], where: { isCorrect: true }, _count: { _all: true } });
-    const correctByTopic = new Map((correctRows as { topicId: string | null; _count: { _all: number } }[]).map((r) => [r.topicId, r._count._all]));
-    return (rows as { topicId: string | null; _count: { _all: number } }[])
-      .filter((r) => r.topicId !== null)
-      .map((r) => ({ topicId: r.topicId as string, attempts: r._count._all, accuracy: (correctByTopic.get(r.topicId) ?? 0) / r._count._all }))
-      .sort((a, b) => a.accuracy - b.accuracy)
-      .slice(0, limit);
   }
 
   // ── Retention (day-1 / day-7 / day-30 return rate, QuestionAttempt proxy) ────
 
   async retention() {
+    return this.cache.remember(this.key('retention'), CacheTTL.DASHBOARD, () => this.buildRetention());
+  }
+
+  private async buildRetention() {
     const now = new Date();
     const windows = [1, 7, 30];
     const results: { windowDays: number; cohortSize: number; returnedCount: number; returnRate: number }[] = [];

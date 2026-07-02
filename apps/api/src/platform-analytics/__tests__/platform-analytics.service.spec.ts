@@ -13,7 +13,11 @@ function mocks() {
     tutorMessage: { findMany: vi.fn().mockResolvedValue([]) },
     question: { findMany: vi.fn().mockResolvedValue([]) },
   };
-  return { prisma, svc: new PlatformAnalyticsService(prisma as never) };
+  const cache = {
+    buildKey: (ns: string, key: string) => `${ns}:${key}`,
+    remember: vi.fn((_key: string, _ttl: number, fn: () => unknown) => fn()),
+  };
+  return { prisma, cache, svc: new PlatformAnalyticsService(prisma as never, cache as never) };
 }
 
 describe('PlatformAnalyticsService', () => {
