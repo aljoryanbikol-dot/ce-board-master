@@ -215,10 +215,12 @@ async function main() {
       log(`review-notes: ${rpt.created}+${rpt.updated} ok, ${rpt.errors.length} errors`);
     }
 
-    // Flashcards
+    // Flashcards (a handful of "formula"-type cards ship with a null `back`
+    // in the source — a real upstream data gap, not a mapping bug; fall back
+    // to a pointer at the Formula Library rather than dropping the card).
     const flashcards = (readJson(pkg.dir, 'flashcards.json').records as any[]).map((r) => ({
       publicId: r.flashcard_id, subjectCode: pkg.code, topicCode: topicCodeByOrig.get(r.topic_id),
-      front: r.front, back: r.back, tags: r.tags ?? [],
+      front: r.front, back: r.back || 'See the Formula Library for the full expression.', tags: r.tags ?? [],
     }));
     if (flashcards.length) {
       const rpt = await sync.sync(SYNC_CONFIGS['flashcards'], flashcards, { atomic: false, actorId: ADMIN_USER_ID });
@@ -247,7 +249,12 @@ async function main() {
         subjectCode: pkg.code, name,
         expressionText: r.formula || name, expressionLatex: r.formula || name,
         variables, derivation: r.derivation || undefined,
-        assumptions: Array.isArray(r.assumptions) ? r.assumptions.slice(0, 20) : [],
+        // A minority of source records ship assumptions as {label: description}
+        // objects instead of plain strings; Prisma's scalar list requires string[].
+        assumptions: Array.isArray(r.assumptions)
+          ? r.assumptions.slice(0, 20).map((a: unknown) =>
+              typeof a === 'string' ? a : Object.entries(a as Record<string, string>).map(([k, v]) => `${k}: ${v}`).join('; '))
+          : [],
         limitations: Array.isArray(r.limitations) ? r.limitations.join('; ').slice(0, 2000) : (r.limitations || undefined),
         exampleProblem: r.engineering_interpretation || undefined,
       };
