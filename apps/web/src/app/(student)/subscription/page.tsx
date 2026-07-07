@@ -29,21 +29,23 @@ export default function SubscriptionPage() {
   const pending = subscribe.isPending || changePlan.isPending;
 
   function selectPlan(planId: string) {
+    // Both endpoints return the same shape: a paid plan (subscribe) or an
+    // upgrade (change) carries a payment.checkoutUrl that we MUST redirect
+    // to — dropping it leaves the user with no way to pay and the plan
+    // silently unchanged.
+    const onSuccess = (result: { payment: { checkoutUrl: string | null } | null }) => {
+      if (result.payment?.checkoutUrl) {
+        window.location.href = result.payment.checkoutUrl;
+        return;
+      }
+      // Free plan or period-end downgrade — no payment step.
+      setOpen(false);
+    };
     if (hasExistingSubscription) {
-      changePlan.mutate(planId, { onSuccess: () => setOpen(false) });
-      return;
+      changePlan.mutate(planId, { onSuccess });
+    } else {
+      subscribe.mutate(planId, { onSuccess });
     }
-    subscribe.mutate(planId, {
-      onSuccess: (result) => {
-        if (result.payment?.checkoutUrl) {
-          // Paid plan — hand off to the payment provider's checkout page.
-          window.location.href = result.payment.checkoutUrl;
-          return;
-        }
-        // Free plan — activated immediately, no payment step.
-        setOpen(false);
-      },
-    });
   }
 
   return (

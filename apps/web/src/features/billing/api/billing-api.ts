@@ -35,6 +35,8 @@ export const billingApi = {
   // existing subscription yet. Free plans activate immediately (no payment);
   // paid plans return a checkoutUrl the caller must redirect to.
   subscribe: (planId: string) => api.data<SubscribeResult>(api.post('/subscriptions', { planId })),
-  changePlan: (planId: string) => api.data(api.post('/subscriptions/change', { planId })),
+  // Same result shape as subscribe: an upgrade returns a payment whose
+  // checkoutUrl the caller MUST redirect to; a downgrade returns payment: null.
+  changePlan: (planId: string) => api.data<SubscribeResult>(api.post('/subscriptions/change', { planId })),
   cancel: () => api.data(api.post('/subscriptions/cancel', {})),
 };
