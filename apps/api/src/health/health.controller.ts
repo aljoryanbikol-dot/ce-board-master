@@ -33,7 +33,12 @@ import { Public } from '../auth/decorators/public.decorator';
 // The global ThrottlerGuard was rate-limiting those probes to 429, which the
 // platform treats as an unhealthy instance and responds by restarting the
 // service — an up/down flap loop. Health checks must never be throttled.
-@SkipThrottle()
+//
+// IMPORTANT: the throttlers are NAMED ('global' and 'auth' in app.module.ts),
+// and a bare @SkipThrottle() only sets { default: true } — which matches no
+// configured throttler and therefore skips nothing. Each named throttler must
+// be exempted explicitly.
+@SkipThrottle({ global: true, auth: true })
 @Controller('health')
 export class HealthController {
   constructor(
