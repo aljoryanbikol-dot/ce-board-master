@@ -23,11 +23,17 @@ import {
 } from '@nestjs/terminus';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { AppEnvironment } from '@/config/configuration';
 import { PrismaService } from '@/database/prisma.service';
 import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('Health')
+// Render's platform probe hits /health every ~5s from a single internal IP.
+// The global ThrottlerGuard was rate-limiting those probes to 429, which the
+// platform treats as an unhealthy instance and responds by restarting the
+// service — an up/down flap loop. Health checks must never be throttled.
+@SkipThrottle()
 @Controller('health')
 export class HealthController {
   constructor(
