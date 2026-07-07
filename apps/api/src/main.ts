@@ -272,10 +272,15 @@ async function bootstrap(): Promise<void> {
   `);
 }
 
-// Handle unhandled rejections at process level (safety net)
+// Safety net: log unhandled rejections WITHOUT killing the process. A stray
+// rejection from a background task (Redis command, webhook retry, queue op)
+// must not take down the whole API — exiting here put production into a
+// restart loop (boot → stray rejection ~1 min later → exit 1 → platform
+// restart, repeating). Request-path errors are already handled by the
+// GlobalExceptionFilter; anything landing here is fire-and-forget work.
 process.on('unhandledRejection', (reason: unknown) => {
-  console.error('Unhandled Rejection:', reason);
-  process.exit(1);
+  const detail = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
+  console.error('Unhandled Rejection (continuing):', detail);
 });
 
 bootstrap().catch((error: unknown) => {
