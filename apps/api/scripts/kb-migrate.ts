@@ -289,7 +289,22 @@ async function main() {
     }
 
     // Questions — must run after topics/subtopics/formulas/diagrams exist.
+    // questionCode is capped at 30 chars; long dotted IDs can truncate to the
+    // SAME code (e.g. Q.WRE.WRES.RESERVOIR.MASSCURVE.1..7), silently collapsing
+    // distinct questions into one row. For members of a collision group,
+    // preserve the ID's numeric tail inside the 30-char budget instead.
     const questionsRaw = readJson(pkg.dir, 'questions.json').records as any[];
+    const truncCounts = new Map<string, number>();
+    for (const r of questionsRaw) {
+      const t = toCode(r.question_id, 30);
+      truncCounts.set(t, (truncCounts.get(t) ?? 0) + 1);
+    }
+    const questionCodeOf = (id: string): string => {
+      const t = toCode(id, 30);
+      if ((truncCounts.get(t) ?? 0) <= 1) return t;
+      const tail = id.match(/(\d+)$/)?.[1] ?? '0';
+      return `${toCode(id, 30 - tail.length - 1)}-${tail}`;
+    };
     const difficultyMap: Record<string, string> = { foundational: 'foundational', intermediate: 'intermediate', advanced: 'advanced' };
     let qIdx = 0;
     const questionItems = questionsRaw.map((r) => {
@@ -302,7 +317,7 @@ async function main() {
         : [];
       const intelligenceNotes = [r.engineering_notes, r.ai_tutor_explanation].filter(Boolean).join('\n\nAI Tutor: ');
       return {
-        questionCode: toCode(r.question_id, 30),
+        questionCode: questionCodeOf(r.question_id),
         subjectCode: pkg.code, topicCode, subtopicCode,
         difficultyCode: difficultyMap[r.difficulty] ?? 'foundational',
         stemText: r.question, choices, correctChoice: r.correct_answer,
