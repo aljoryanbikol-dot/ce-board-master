@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/hooks/use-auth';
+import { isAdminRole } from '@/lib/auth/types';
 import { loginSchema, type LoginForm } from '../schemas';
 import { FormField } from '@/components/form/form-field';
 import { Input } from '@/components/ui/input';
@@ -26,7 +27,9 @@ export function LoginFormView() {
       const res = await login({ email: values.email, password: values.password, mfaCode: (values as { mfaCode?: string }).mfaCode });
       if (res.mfaRequired) { setMfaNeeded(true); toast.info('Enter your authenticator code to continue'); return; }
       toast.success('Welcome back');
-      router.replace(params.get('next') || '/dashboard');
+      // Admins land on the admin portal unless they were headed somewhere specific.
+      const fallback = isAdminRole(res.user?.role) ? '/admin' : '/dashboard';
+      router.replace(params.get('next') || fallback);
     } catch (err) {
       toast.fromError(err, 'Could not sign you in');
     }
