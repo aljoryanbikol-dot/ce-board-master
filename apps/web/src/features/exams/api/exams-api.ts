@@ -3,7 +3,13 @@
  */
 import { api } from '@/lib/api/client';
 
-export interface ExamTemplate { id: string; code: string; name: string; kind: string; totalQuestions: number; durationMinutes: number; passingScore: number; }
+export interface ExamTemplate {
+  id: string; code: string; name: string; kind: string;
+  totalQuestions: number; durationMinutes: number; passingScore: number;
+  description?: string | null;
+  /** Per-subject question counts (JSON column, returned as-is by /exams/templates). */
+  composition?: Array<{ subjectId: string; count: number; weightPercent?: number | null }>;
+}
 export interface ExamSummary { examId: string; status: string; totalQuestions: number; durationMinutes: number; }
 
 export const examsApi = {

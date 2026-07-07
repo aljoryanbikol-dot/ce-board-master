@@ -333,6 +333,43 @@ async function main() {
     }
   }
 
+  // ── Phase 3: curriculum-wide Mock Examination Library ───────────────────────
+  // Root-level MOCK-EXAM-LIBRARY.json (schema ceboardmaster/mock-exam-templates/v1):
+  // 113 PRC-aligned templates — full-board simulations, per-paper simulations,
+  // single-subject tiers, topic drills, mixed-subject papers. Additive to the
+  // 105 per-subject templates imported in the loop above.
+  const libPath = path.join(EXPORT_ROOT, 'MOCK-EXAM-LIBRARY.json');
+  if (fs.existsSync(libPath)) {
+    log('=== Phase 3: Mock Examination Library ===');
+    const lib = JSON.parse(fs.readFileSync(libPath, 'utf-8'));
+    const kindByScope: Record<string, string> = {
+      'full-board': 'full_board',
+      'board-paper': 'full_board',
+      'mixed-subject': 'custom',
+      'single-subject': 'subject',
+      'topic-focused': 'subject',
+    };
+    const libTemplates = (lib.records as any[]).map((r) => ({
+      code: toCode(r.exam_code ?? r.template_id, 50),
+      name: String(r.title).slice(0, 160),
+      description: r.description ?? null,
+      kind: kindByScope[r.scope] ?? 'custom',
+      durationMinutes: Math.min(600, Math.max(15, Math.round(r.time_limit_min ?? r.estimated_duration_min ?? (r.total_items ?? 20) * 4.7))),
+      passingScore: Math.round(r.passing_score_pct ?? 70),
+      randomizeQuestions: true,
+      randomizeChoices: true,
+      composition: (Array.isArray(r.subject_coverage) && r.subject_coverage.length
+        ? r.subject_coverage.map((sc: any) => ({ subjectId: subjectIdByCode.get(sc.subject_code)!, count: sc.item_count }))
+        : [{ subjectId: subjectIdByCode.get(r.subject_code)!, count: r.total_items ?? 20 }]
+      ).filter((c: any) => c.subjectId && c.count > 0),
+    })).filter((t) => t.composition.length > 0);
+    const rpt = await sync.sync(SYNC_CONFIGS['mock-exam-templates'], libTemplates, { atomic: false, actorId: ADMIN_USER_ID });
+    log(`mock-exam-library: ${rpt.created}+${rpt.updated} ok, ${rpt.errors.length} errors (of ${libTemplates.length} templates)`);
+    if (rpt.errors.length) log('library errors sample:', rpt.errors.slice(0, 5));
+  } else {
+    log('Phase 3 skipped: MOCK-EXAM-LIBRARY.json not present');
+  }
+
   log('\n=== MIGRATION COMPLETE ===');
   await app.close();
   process.exit(0);
