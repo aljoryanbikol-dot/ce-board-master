@@ -96,7 +96,9 @@ export class PracticeSessionService {
   /** Subjects that currently have at least one published question (for the "by subject" picker). */
   async listSubjects() {
     return this.prisma.subject.findMany({
-      where: { questions: { some: { questionStatus: 'published', deletedAt: null } } },
+      // isActive excludes retired legacy-taxonomy subjects, which still hold
+      // historical published questions but must not be offered to students.
+      where: { isActive: true, questions: { some: { questionStatus: 'published', deletedAt: null } } },
       select: { id: true, code: true, name: true },
       orderBy: { name: 'asc' },
     });
@@ -214,7 +216,9 @@ export class PracticeSessionService {
       return recs.map((r) => r.questionId);
     }
 
-    const where: Prisma.QuestionWhereInput = { deletedAt: null, questionStatus: 'published' };
+    // subject.isActive excludes questions still attached to retired
+    // legacy-taxonomy subjects from the broad mixed/blueprint pools.
+    const where: Prisma.QuestionWhereInput = { deletedAt: null, questionStatus: 'published', subject: { isActive: true } };
     if (dto.mode === 'subject' && dto.subjectId) where.subjectId = dto.subjectId;
     if (dto.mode === 'topic' && dto.topicId) where.topicId = dto.topicId;
     if (dto.mode === 'difficulty' && dto.difficultyLevelId) where.difficultyLevelId = dto.difficultyLevelId;

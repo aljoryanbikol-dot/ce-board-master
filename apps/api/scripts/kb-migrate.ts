@@ -187,6 +187,40 @@ async function main() {
       log(`diagrams: 0 imported (no svg_markup yet for this subject — svg_spec pending retrofit per HANDOFF-REPORT)`);
     }
 
+    // Question figures — a SECOND diagram pool that lives inside questions.json
+    // (record.figure.svg_markup), separate from diagrams.json. The renderer
+    // resolves them by convention: publicId = 'FIG.' + questionCode with
+    // '-'→'.' (QuestionDiagramLookupService), so upsert under that derived id.
+    {
+      const questionsForFigs = readJson(pkg.dir, 'questions.json').records as any[];
+      const figTrunc = new Map<string, number>();
+      for (const r of questionsForFigs) {
+        const t = toCode(r.question_id, 30);
+        figTrunc.set(t, (figTrunc.get(t) ?? 0) + 1);
+      }
+      const codeOf = (id: string): string => {
+        const t = toCode(id, 30);
+        if ((figTrunc.get(t) ?? 0) <= 1) return t;
+        const tail = id.match(/(\d+)$/)?.[1] ?? '0';
+        return `${toCode(id, 30 - tail.length - 1)}-${tail}`;
+      };
+      const figureItems = questionsForFigs
+        .filter((r) => r.figure && typeof r.figure === 'object' && typeof r.figure.svg_markup === 'string' && r.figure.svg_markup.length > 0)
+        .map((r) => ({
+          publicId: `FIG.${codeOf(r.question_id).replace(/-/g, '.')}`,
+          subjectCode: pkg.code,
+          title: (r.figure.title || `Figure for ${r.question_id}`).slice(0, 300),
+          description: r.figure.description || null,
+          imageUrl: svgToDataUri(r.figure.svg_markup),
+          altText: (r.figure.title || r.figure.description || `Figure for ${r.question_id}`).slice(0, 500),
+          diagramType: 'question-figure',
+        }));
+      if (figureItems.length) {
+        const rpt = await sync.sync(SYNC_CONFIGS['diagrams'], figureItems, { atomic: false, actorId: ADMIN_USER_ID });
+        log(`question-figures: ${rpt.created}+${rpt.updated} ok, ${rpt.errors.length} errors (${questionsForFigs.length - figureItems.length} figure-less)`);
+      }
+    }
+
     // Misconceptions (title synthesized; topicCode/subtopicCode/category capped at 3 chars).
     const misconceptions = (readJson(pkg.dir, 'misconceptions.json').records as any[]).map((r, i) => ({
       publicId: r.misconception_id, subjectCode: pkg.code,
