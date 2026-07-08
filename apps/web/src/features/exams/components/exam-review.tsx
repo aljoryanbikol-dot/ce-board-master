@@ -36,7 +36,7 @@ interface ReviewItem {
   commonMistakes: string[];
   boardTips: string[];
   timeSavingTips: string | null;
-  formulas: Array<{ name: string; latex: string | null; text: string | null; isPrimary: boolean }>;
+  formulas: Array<{ name: string; slug: string; latex: string | null; text: string | null; isPrimary: boolean }>;
   diagram: DiagramImageData | null;
 }
 
@@ -142,7 +142,12 @@ export function ExamReviewView({ examId }: { examId: string }) {
                   <Section icon={Sigma} title="Formulas used">
                     {q.formulas.map((f) => (
                       <div key={f.name} className="rounded-md bg-secondary/50 p-2">
-                        <p className="text-xs text-muted-foreground">{f.name}{f.isPrimary ? ' · primary' : ''}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-muted-foreground">{f.name}{f.isPrimary ? ' · primary' : ''}</p>
+                          <Link href={`/handbook/formula/${f.slug}`} className="shrink-0 text-xs font-medium text-primary hover:underline">
+                            Open in Handbook
+                          </Link>
+                        </div>
                         <p className="font-mono text-sm"><MathText text={f.latex ?? f.text ?? ''} /></p>
                       </div>
                     ))}

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Bot, Send, User, BookText } from 'lucide-react';
 import { tutorApi, type TutorAnswer } from '../api/tutor-api';
 import { PageHeader } from '@/components/common/page-header';
@@ -20,8 +21,16 @@ export function TutorChat() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const params = useSearchParams();
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [turns, busy]);
+
+  // Deep links from the Fundamentals Handbook / exam review prefill the ask.
+  useEffect(() => {
+    const ask = params.get('ask');
+    if (ask) setInput(ask);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function send(message: string) {
     if (!message.trim() || busy) return;

@@ -2,6 +2,7 @@
 import { Flame, Target, CheckCircle2, AlertTriangle, ArrowRight, Trophy, Award } from 'lucide-react';
 import Link from 'next/link';
 import { useDashboard, useWeakTopics } from '../hooks/use-student';
+import { DailyPicksRow } from './daily-picks';
 import { PageHeader } from '@/components/common/page-header';
 import { StatCard } from '@/components/common/stat-card';
 import { QueryBoundary } from '@/components/common/query-boundary';
@@ -97,6 +98,8 @@ export function DashboardView() {
             </CardContent>
           </Card>
         </div>
+
+        <DailyPicksRow />
       </QueryBoundary>
     </div>
   );

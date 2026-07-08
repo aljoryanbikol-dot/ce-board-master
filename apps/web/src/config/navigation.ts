@@ -19,6 +19,7 @@ export const studentNav: NavSection[] = [
     items: [
       { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
       { label: 'Continue Learning', href: '/learn', icon: BookOpen },
+      { label: 'Fundamentals Handbook', href: '/handbook', icon: Library },
       { label: 'Practice', href: '/practice', icon: Dumbbell },
       { label: 'Mock Exams', href: '/exams', icon: FileText },
       { label: 'AI Tutor', href: '/tutor', icon: Bot },
