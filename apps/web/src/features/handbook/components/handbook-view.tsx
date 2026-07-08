@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ReferenceTab } from './reference-tab';
+import { SymbolsTab, GlossaryTab, FoundationsTab, LastMinuteTab } from './knowledge-tabs';
 
 export function HandbookView() {
   const [q, setQ] = useState('');
@@ -39,9 +41,14 @@ export function HandbookView() {
       <PageHeader title="Fundamentals Handbook" description="Your daily engineering reference — every formula, concept, and board tip from the Knowledge Library." />
 
       <Tabs defaultValue="library">
-        <TabsList>
-          <TabsTrigger value="library">Formula Library</TabsTrigger>
+        <TabsList className="flex max-w-full flex-wrap">
+          <TabsTrigger value="library">Formulas</TabsTrigger>
           <TabsTrigger value="memorize"><Star className="mr-1 h-3.5 w-3.5" /> Must Memorize</TabsTrigger>
+          <TabsTrigger value="foundations">Foundations</TabsTrigger>
+          <TabsTrigger value="reference">Constants & Tables</TabsTrigger>
+          <TabsTrigger value="symbols">Symbols</TabsTrigger>
+          <TabsTrigger value="glossary">Glossary</TabsTrigger>
+          <TabsTrigger value="lastminute">Last-Minute</TabsTrigger>
         </TabsList>
 
         <TabsContent value="library">
@@ -129,6 +136,12 @@ export function HandbookView() {
             </div>
           </QueryBoundary>
         </TabsContent>
+
+        <TabsContent value="foundations"><FoundationsTab /></TabsContent>
+        <TabsContent value="reference"><ReferenceTab /></TabsContent>
+        <TabsContent value="symbols"><SymbolsTab /></TabsContent>
+        <TabsContent value="glossary"><GlossaryTab /></TabsContent>
+        <TabsContent value="lastminute"><LastMinuteTab /></TabsContent>
       </Tabs>
     </div>
   );

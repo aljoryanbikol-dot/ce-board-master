@@ -154,6 +154,154 @@ export class HandbookService {
     };
   }
 
+  /**
+   * Searchable engineering symbol index, derived from FormulaLibrary
+   * variables — every symbol with its meanings, units, and the formulas it
+   * appears in. Aggregated once and cached (the formula pool changes only on
+   * Knowledge Library sync).
+   */
+  async symbols(q?: string) {
+    const key = this.cache.buildKey(CacheNamespace.KNOWLEDGE, 'handbook', 'symbols');
+    const index = await this.cache.remember(key, CacheTTL.KNOWLEDGE, async () => {
+      const formulas = await this.prisma.formulaLibrary.findMany({
+        where: { isActive: true, subject: { isActive: true } },
+        select: { slug: true, name: true, variables: true, subject: { select: { code: true } } },
+      });
+      const bySymbol = new Map<string, { symbol: string; meanings: Set<string>; units: Set<string>; formulas: Array<{ slug: string; name: string }> }>();
+      for (const f of formulas) {
+        const vars = Array.isArray(f.variables) ? (f.variables as Array<{ symbol?: string; name?: string; unit?: string }>) : [];
+        for (const v of vars) {
+          if (!v?.symbol) continue;
+          const entry = bySymbol.get(v.symbol) ?? { symbol: v.symbol, meanings: new Set<string>(), units: new Set<string>(), formulas: [] };
+          if (v.name) entry.meanings.add(v.name);
+          if (v.unit) entry.units.add(v.unit);
+          if (entry.formulas.length < 8) entry.formulas.push({ slug: f.slug, name: f.name });
+          bySymbol.set(v.symbol, entry);
+        }
+      }
+      return Array.from(bySymbol.values())
+        .map((e) => ({ symbol: e.symbol, meanings: Array.from(e.meanings).slice(0, 6), units: Array.from(e.units).slice(0, 4), formulas: e.formulas }))
+        .sort((a, b) => a.symbol.localeCompare(b.symbol));
+    });
+    if (!q) return index.slice(0, 200);
+    const needle = q.toLowerCase();
+    return index
+      .filter((e) => e.symbol.toLowerCase().includes(needle) || e.meanings.some((m) => m.toLowerCase().includes(needle)))
+      .slice(0, 200);
+  }
+
+  /** Searchable glossary over published Concepts, with related records. */
+  async glossary(params: { q?: string; subjectCode?: string; page: number; limit: number }) {
+    const { q, subjectCode, page, limit } = params;
+    const where = {
+      status: 'published' as const,
+      ...(subjectCode ? { subjectCode } : {}),
+      ...(q
+        ? { OR: [
+            { title: { contains: q, mode: 'insensitive' as const } },
+            { body: { contains: q, mode: 'insensitive' as const } },
+            { keywords: { has: q } },
+          ] }
+        : {}),
+    };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.concept.findMany({
+        where, orderBy: { title: 'asc' }, skip: (page - 1) * limit, take: limit,
+        select: { publicId: true, title: true, body: true, subjectCode: true, topicCode: true, keywords: true },
+      }),
+      this.prisma.concept.count({ where }),
+    ]);
+    return { items, total, page, limit };
+  }
+
+  /**
+   * Engineering Foundations — review pages composed from existing
+   * ReviewNotes, grouped by subject/topic (MATH topics cover algebra through
+   * statistics; EM and SOM cover mechanics fundamentals).
+   */
+  async foundations() {
+    const key = this.cache.buildKey(CacheNamespace.KNOWLEDGE, 'handbook', 'foundations');
+    return this.cache.remember(key, CacheTTL.KNOWLEDGE, async () => {
+      const notes = await this.prisma.reviewNote.findMany({
+        where: { status: 'published' },
+        orderBy: [{ subjectCode: 'asc' }, { topicCode: 'asc' }],
+        select: { publicId: true, subjectCode: true, topicCode: true, title: true, examWeight: true },
+      });
+      const topics = await this.prisma.topic.findMany({
+        where: { subject: { isActive: true } },
+        select: { code: true, name: true, subject: { select: { code: true, name: true } } },
+      });
+      const topicByCode = new Map(topics.map((t) => [t.code, t]));
+      const groups = new Map<string, { subjectCode: string; subjectName: string; pages: Array<{ publicId: string; title: string; topicName: string | null; examWeight: number | null }> }>();
+      for (const n of notes) {
+        const topic = n.topicCode ? topicByCode.get(n.topicCode) : undefined;
+        const sCode = topic?.subject.code ?? n.subjectCode ?? '—';
+        const sName = topic?.subject.name ?? n.subjectCode ?? 'Other';
+        const g = groups.get(sCode) ?? { subjectCode: sCode, subjectName: sName, pages: [] };
+        g.pages.push({ publicId: n.publicId, title: n.title, topicName: topic?.name ?? null, examWeight: n.examWeight ? Number(n.examWeight) : null });
+        groups.set(sCode, g);
+      }
+      return Array.from(groups.values());
+    });
+  }
+
+  /** One foundations page: the review note plus the topic's formulas and concepts. */
+  async foundationPage(publicId: string) {
+    const note = await this.prisma.reviewNote.findUnique({
+      where: { publicId },
+      select: { publicId: true, title: true, body: true, topicCode: true, subjectCode: true },
+    });
+    if (!note) return null;
+    const topic = note.topicCode
+      ? await this.prisma.topic.findUnique({ where: { code: note.topicCode }, select: { id: true, name: true, subject: { select: { name: true, code: true } } } })
+      : null;
+    const [formulas, concepts] = await Promise.all([
+      topic ? this.prisma.formulaLibrary.findMany({ where: { isActive: true, topicId: topic.id }, take: 12, select: { slug: true, name: true, expressionLatex: true } }) : [],
+      note.topicCode ? this.prisma.concept.findMany({ where: { status: 'published', topicCode: note.topicCode }, take: 8, select: { publicId: true, title: true, body: true } }) : [],
+    ]);
+    return {
+      publicId: note.publicId, title: note.title, body: note.body,
+      topicName: topic?.name ?? null, subject: topic?.subject ?? null,
+      formulas, concepts: concepts.map((c) => ({ publicId: c.publicId, title: c.title, summary: c.body.slice(0, 240) })),
+    };
+  }
+
+  /** "Last Minute Review" — the highest-yield records across the whole library. */
+  async lastMinute() {
+    const key = this.cache.buildKey(CacheNamespace.KNOWLEDGE, 'handbook', 'last-minute');
+    return this.cache.remember(key, CacheTTL.KNOWLEDGE, async () => {
+      const [topFormulas, mistakesRaw, tips] = await Promise.all([
+        this.prisma.formulaLibrary.findMany({
+          where: { isActive: true, subject: { isActive: true }, questionFormulas: { some: {} } },
+          orderBy: { questionFormulas: { _count: 'desc' } },
+          take: 100,
+          select: { slug: true, name: true, expressionLatex: true, expressionText: true, subject: { select: { code: true } }, _count: { select: { questionFormulas: true } } },
+        }),
+        this.prisma.questionIntelligence.findMany({
+          where: { commonMistakes: { not: { equals: null } } },
+          take: 400,
+          select: { commonMistakes: true },
+        }),
+        this.prisma.engineeringTip.findMany({ where: { status: 'published' }, take: 40, orderBy: { publicId: 'asc' }, select: { title: true, tip: true, subjectCode: true } }),
+      ]);
+      // Dedupe/flatten a sample of common mistakes across the bank.
+      const mistakes: string[] = [];
+      const seen = new Set<string>();
+      for (const row of mistakesRaw) {
+        if (!Array.isArray(row.commonMistakes)) continue;
+        for (const m of row.commonMistakes as string[]) {
+          const norm = m.trim();
+          if (norm.length < 12 || seen.has(norm)) continue;
+          seen.add(norm);
+          mistakes.push(norm);
+          if (mistakes.length >= 60) break;
+        }
+        if (mistakes.length >= 60) break;
+      }
+      return { topFormulas, commonMistakes: mistakes, boardTips: tips };
+    });
+  }
+
   /** Formula / Concept / Tip of the Day — date-seeded, stable for 24h. */
   async daily() {
     const day = Math.floor(Date.now() / DAY_MS);
@@ -165,7 +313,7 @@ export class HandbookService {
         this.prisma.concept.count({ where: { status: 'published' } }),
         this.prisma.engineeringTip.count({ where: { status: 'published' } }),
       ]);
-      const [formula, concept, tip] = await Promise.all([
+      const [formula, concept, tip, definition] = await Promise.all([
         formulaCount
           ? this.prisma.formulaLibrary.findMany({
               where: { isActive: true, ...activeSubject },
@@ -191,8 +339,16 @@ export class HandbookService {
               select: { publicId: true, title: true, tip: true, subjectCode: true },
             }).then((r) => r[0] ?? null)
           : null,
+        // Definition of the Day: a second, independently-offset concept pick.
+        conceptCount
+          ? this.prisma.concept.findMany({
+              where: { status: 'published' },
+              orderBy: { publicId: 'asc' }, skip: (day * 7 + 3) % conceptCount, take: 1,
+              select: { publicId: true, title: true, body: true, subjectCode: true },
+            }).then((r) => r[0] ?? null)
+          : null,
       ]);
-      return { formula, concept, tip };
+      return { formula, concept, tip, definition };
     });
   }
 }

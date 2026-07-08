@@ -6,7 +6,7 @@
  */
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Sigma, BookOpen, Lightbulb, ArrowRight } from 'lucide-react';
+import { Sigma, BookOpen, Lightbulb, ArrowRight, BookMarked, Zap } from 'lucide-react';
 import { handbookApi } from '@/features/handbook/api/handbook-api';
 import { MathText } from '@/components/common/math-text';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -69,6 +69,38 @@ export function DailyPicksRow() {
           </CardContent>
         </Card>
       ) : null}
+
+      {d.definition ? (
+        <Card className="flex flex-col">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm"><BookMarked className="h-4 w-4 text-primary" /> Definition of the Day</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col">
+            <p className="text-sm font-medium">{d.definition.title}</p>
+            <p className="mt-1 line-clamp-4 text-xs text-muted-foreground">{d.definition.body}</p>
+            <div className="mt-auto flex items-center justify-between pt-3">
+              {d.definition.subjectCode ? <Badge variant="muted">{d.definition.subjectCode}</Badge> : <span />}
+              <Link href="/handbook?tab=glossary" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                Glossary <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card className="flex flex-col border-primary/40">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm"><Zap className="h-4 w-4 text-primary" /> Daily Quick Quiz</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-1 flex-col">
+          <p className="text-sm text-muted-foreground">A short mixed set to keep your streak alive — five minutes, all subjects.</p>
+          <div className="mt-auto pt-3">
+            <Link href="/practice" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+              Start today&apos;s quiz <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
