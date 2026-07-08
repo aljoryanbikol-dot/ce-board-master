@@ -169,7 +169,14 @@ export class HandbookService {
       });
       const bySymbol = new Map<string, { symbol: string; meanings: Set<string>; units: Set<string>; formulas: Array<{ slug: string; name: string }> }>();
       for (const f of formulas) {
-        const vars = Array.isArray(f.variables) ? (f.variables as Array<{ symbol?: string; name?: string; unit?: string }>) : [];
+        // FormulaService.bulkSync persists variables wrapped as { items: [...] };
+        // hand-authored records may be a bare array. Accept both shapes.
+        const raw = f.variables as unknown;
+        const vars = Array.isArray(raw)
+          ? (raw as Array<{ symbol?: string; name?: string; unit?: string }>)
+          : Array.isArray((raw as { items?: unknown[] } | null)?.items)
+            ? ((raw as { items: Array<{ symbol?: string; name?: string; unit?: string }> }).items)
+            : [];
         for (const v of vars) {
           if (!v?.symbol) continue;
           const entry = bySymbol.get(v.symbol) ?? { symbol: v.symbol, meanings: new Set<string>(), units: new Set<string>(), formulas: [] };
