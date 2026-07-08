@@ -161,7 +161,9 @@ export class HandbookService {
    * Knowledge Library sync).
    */
   async symbols(q?: string) {
-    const key = this.cache.buildKey(CacheNamespace.KNOWLEDGE, 'handbook', 'symbols');
+    // v2: key versioned past a cached-empty result from the pre-fix build
+    // (remember() had stored [] for the full TTL).
+    const key = this.cache.buildKey(CacheNamespace.KNOWLEDGE, 'handbook', 'symbols', 'v2');
     const index = await this.cache.remember(key, CacheTTL.KNOWLEDGE, async () => {
       const formulas = await this.prisma.formulaLibrary.findMany({
         where: { isActive: true, subject: { isActive: true } },
