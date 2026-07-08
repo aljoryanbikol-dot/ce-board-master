@@ -75,7 +75,7 @@ export class EmailService {
   /**
    * Queue a verification email after registration.
    * The raw token is embedded in the link as a query parameter.
-   * Link format: {frontendUrl}/auth/verify-email?token={rawToken}
+   * Link format: {frontendUrl}/verify-email?token={rawToken}
    *
    * @param to - Recipient email address
    * @param firstName - Recipient first name for personalisation
@@ -86,7 +86,7 @@ export class EmailService {
     firstName: string,
     rawToken: string,
   ): Promise<void> {
-    const verificationUrl = `${this.frontendUrl}/auth/verify-email?token=${rawToken}`;
+    const verificationUrl = `${this.frontendUrl}/verify-email?token=${rawToken}`;
 
     const payload: VerificationEmailPayload = {
       type: 'verification',
@@ -111,7 +111,7 @@ export class EmailService {
 
   /**
    * Queue a password reset email.
-   * Link format: {frontendUrl}/auth/reset-password?token={rawToken}
+   * Link format: {frontendUrl}/reset-password?token={rawToken}
    *
    * @param to - Recipient email address
    * @param firstName - Recipient first name
@@ -122,7 +122,7 @@ export class EmailService {
     firstName: string,
     rawToken: string,
   ): Promise<void> {
-    const resetUrl = `${this.frontendUrl}/auth/reset-password?token=${rawToken}`;
+    const resetUrl = `${this.frontendUrl}/reset-password?token=${rawToken}`;
 
     const payload: PasswordResetEmailPayload = {
       type: 'password_reset',
