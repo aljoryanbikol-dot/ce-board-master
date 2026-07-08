@@ -50,7 +50,9 @@ export const authApi = {
   },
 
   async resetPassword(input: ResetPasswordInput): Promise<{ reset: boolean }> {
-    return api.data(api.post('/auth/reset-password', input, { skipAuth: true }));
+    // Backend contract is { token, newPassword } (ResetPasswordSchema) — the
+    // form's `password` field must be renamed on the wire or validation 400s.
+    return api.data(api.post('/auth/reset-password', { token: input.token, newPassword: input.password }, { skipAuth: true }));
   },
 
   async changePassword(currentPassword: string, newPassword: string): Promise<{ changed: boolean }> {
