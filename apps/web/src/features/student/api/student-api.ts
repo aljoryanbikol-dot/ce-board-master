@@ -51,7 +51,7 @@ export const studentApi = {
   bookmarks: () => api.data(api.get('/student/bookmarks')),
   favorites: () => api.data(api.get('/student/favorites')),
   recentlyViewed: () => api.data(api.get('/student/recently-viewed')),
-  history: () => api.data(api.get('/student/history')),
+  history: (outcome?: 'correct' | 'incorrect' | 'skipped') => api.data(api.get('/student/history', { query: { outcome, limit: 50 } })),
   // Practice
   recommendations: (subjectId?: string) => api.data(api.get('/student/practice/recommendations', { query: { subjectId } })),
   practiceSubjects: () => api.data<Array<{ id: string; code: string; name: string }>>(api.get('/student/practice/subjects')),

@@ -16,6 +16,7 @@ export const useLeaderboard = () => useQuery({ queryKey: [...queryKeys.student.a
 export const usePlanner = (from: string, to: string) =>
   useQuery({ queryKey: [...queryKeys.student.planner, from, to], queryFn: () => studentApi.plannerCalendar(from, to) });
 export const useBookmarks = () => useQuery({ queryKey: queryKeys.student.bookmarks, queryFn: studentApi.bookmarks });
-export const useHistory = () => useQuery({ queryKey: queryKeys.student.history, queryFn: studentApi.history });
+export const useHistory = (outcome?: 'correct' | 'incorrect' | 'skipped') =>
+  useQuery({ queryKey: [...queryKeys.student.history, outcome ?? 'all'], queryFn: () => studentApi.history(outcome) });
 export const useRecommendations = (subjectId?: string) =>
   useQuery({ queryKey: queryKeys.practice.recommendations(subjectId), queryFn: () => studentApi.recommendations(subjectId) });

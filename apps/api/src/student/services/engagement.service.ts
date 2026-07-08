@@ -86,12 +86,20 @@ export class EngagementService {
       ...(dto.outcome && { outcome: dto.outcome as never }),
       ...(dto.cursor && { id: { lt: dto.cursor } }),
     };
-    const rows = await this.prisma.questionAttempt.findMany({ where, orderBy: { attemptedAt: 'desc' }, take: dto.limit + 1 });
+    const rows = await this.prisma.questionAttempt.findMany({
+      where,
+      orderBy: { attemptedAt: 'desc' },
+      take: dto.limit + 1,
+      include: { question: { select: { questionCode: true, stemText: true, subject: { select: { code: true } } } } },
+    });
     const hasMore = rows.length > dto.limit;
     const page = hasMore ? rows.slice(0, dto.limit) : rows;
     return {
-      data: page.map((a: { id: string; questionId: string; outcome: string; isCorrect: boolean; selectedChoice: string | null; timeSpentSec: number; attemptedAt: Date }) => ({
+      data: page.map((a: (typeof rows)[number]) => ({
         id: a.id, questionId: a.questionId, outcome: a.outcome, isCorrect: a.isCorrect, selectedChoice: a.selectedChoice, timeSpentSec: a.timeSpentSec, attemptedAt: a.attemptedAt.toISOString(),
+        questionCode: a.question?.questionCode ?? null,
+        stem: a.question?.stemText?.slice(0, 140) ?? null,
+        subjectCode: a.question?.subject?.code ?? null,
       })),
       pagination: { cursor: hasMore ? page[page.length - 1]!.id : null, hasMore },
     };
