@@ -104,6 +104,11 @@ export class EmailProcessor extends WorkerHost {
     super();
   }
 
+  onApplicationBootstrap(): void {
+    // Greppable liveness marker: proves the worker attached to the queue.
+    this.logger.log({ message: 'EmailProcessor attached to email queue', hasResendKey: !!this.config.get('RESEND_API_KEY', { infer: true }) });
+  }
+
   async process(job: Job<EmailJobPayload>): Promise<void> {
     const payload = job.data;
     const apiKey = this.config.get('RESEND_API_KEY', { infer: true });
