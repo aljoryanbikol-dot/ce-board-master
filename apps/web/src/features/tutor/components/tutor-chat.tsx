@@ -42,8 +42,18 @@ export function TutorChat() {
       const answer = await tutorApi.sendMessage(convId, { message });
       setTurns((t) => [...t, { role: 'assistant', content: answer.content, citations: answer.citations, followUps: answer.followUps }]);
     } catch (err) {
-      toast.fromError(err, 'The tutor could not respond');
-      setTurns((t) => [...t, { role: 'assistant', content: 'Sorry — I hit an error answering that. Please try again.' }]);
+      // Free-tier quota is an expected state, not an error — show the upgrade
+      // path instead of a broken-looking apology.
+      const code = (err as { code?: string } | null)?.code;
+      if (code === 'FREE_TIER_LIMIT_REACHED') {
+        setTurns((t) => [...t, {
+          role: 'assistant',
+          content: 'You have used all your free AI Tutor questions. Upgrade to Premium for unlimited tutoring — open Subscription in the sidebar to see plans.',
+        }]);
+      } else {
+        toast.fromError(err, 'The tutor could not respond');
+        setTurns((t) => [...t, { role: 'assistant', content: 'Sorry — I hit an error answering that. Please try again.' }]);
+      }
     } finally {
       setBusy(false);
     }
