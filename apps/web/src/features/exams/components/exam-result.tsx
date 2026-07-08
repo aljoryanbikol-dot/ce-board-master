@@ -38,7 +38,7 @@ export function ExamResultView({ examId }: { examId: string }) {
             </div>
 
             <div className="mt-6 flex gap-3">
-              <Button asChild><Link href={`/exams/${examId}/result?tab=review`}><ListChecks className="h-4 w-4" /> Review answers</Link></Button>
+              <Button asChild><Link href={`/exams/${examId}/review`}><ListChecks className="h-4 w-4" /> Review answers</Link></Button>
             </div>
           </>
         ) : null}

@@ -2,19 +2,41 @@
  * @file exam-review.service.ts
  * @module Exams/Services
  *
- * ExamReviewService — post-exam answer review. Returns the questions of a
- * submitted exam filtered by all / incorrect / bookmarked / skipped, with the
- * correct answer, the student's choice, and the explanation. Ownership-scoped;
- * only available once the exam is submitted/expired (graded).
+ * ExamReviewService — premium post-exam Review Mode. Returns the questions of
+ * a submitted exam filtered by all / incorrect / bookmarked / skipped with the
+ * full engineering context for each: the student's answer vs the correct one,
+ * the step-by-step solution, formulas used (with LaTeX), engineering notes and
+ * the AI-tutor explanation, common mistakes, board tips, and the question's
+ * figure. Ownership-scoped; only available once the exam is submitted/expired.
  */
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { QuestionDiagramLookupService } from '../../questions/services/question-diagram-lookup.service';
 import { ExamErrors } from '../errors/exam.errors';
 import type { ReviewQueryDto } from '../dto/exam.dto';
 
+/**
+ * examineerNotes stores the Knowledge Library engineering notes and the
+ * AI-tutor explanation folded into one field, joined by an "AI Tutor:" marker
+ * (see kb-migrate.ts question import). Split them back for display.
+ */
+function splitNotes(examineerNotes: string | null | undefined): { engineeringNotes: string | null; aiTutorExplanation: string | null } {
+  if (!examineerNotes) return { engineeringNotes: null, aiTutorExplanation: null };
+  const marker = '\n\nAI Tutor: ';
+  const at = examineerNotes.indexOf(marker);
+  if (at < 0) return { engineeringNotes: examineerNotes, aiTutorExplanation: null };
+  return {
+    engineeringNotes: examineerNotes.slice(0, at) || null,
+    aiTutorExplanation: examineerNotes.slice(at + marker.length) || null,
+  };
+}
+
 @Injectable()
 export class ExamReviewService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly diagrams: QuestionDiagramLookupService,
+  ) {}
 
   async review(userId: string, examId: string, dto: ReviewQueryDto) {
     const exam = await this.prisma.mockExam.findUnique({ where: { id: examId } });
@@ -24,8 +46,30 @@ export class ExamReviewService {
 
     const examQuestions = await this.prisma.examQuestion.findMany({
       where: { examId }, orderBy: { position: 'asc' },
-      include: { answer: true, question: { select: { stemText: true, correctChoice: true, explanationText: true, choices: { select: { choiceLetter: true, choiceText: true } } } } },
+      include: {
+        answer: true,
+        question: {
+          select: {
+            questionCode: true, stemText: true, correctChoice: true, explanationText: true,
+            choices: { select: { choiceLetter: true, choiceText: true } },
+            subject: { select: { name: true, code: true } },
+            topic: { select: { name: true } },
+            intelligence: { select: { examineerNotes: true, commonMistakes: true, studyTips: true, timeSavingTips: true } },
+            questionFormulas: {
+              select: {
+                isPrimary: true,
+                formula: { select: { name: true, slug: true, expressionLatex: true, expressionText: true } },
+              },
+              orderBy: { isPrimary: 'desc' },
+            },
+          },
+        },
+      },
     });
+
+    // Batch-resolve every question's figure by naming convention (one query).
+    const codes = examQuestions.map((eq: any) => eq.question.questionCode as string);
+    const figureByCode = await this.diagrams.resolveMany(codes);
 
     const items = examQuestions
       .filter((eq: any) => {
@@ -39,15 +83,34 @@ export class ExamReviewService {
       .map((eq: any) => {
         const order = eq.choiceOrder as string[];
         const choiceMap = new Map<string, string>(eq.question.choices.map((ch: any) => [ch.choiceLetter, ch.choiceText]));
+        const { engineeringNotes, aiTutorExplanation } = splitNotes(eq.question.intelligence?.examineerNotes);
+        const commonMistakes = Array.isArray(eq.question.intelligence?.commonMistakes)
+          ? (eq.question.intelligence.commonMistakes as string[])
+          : [];
         return {
           examQuestionId: eq.id, position: eq.position, questionId: eq.questionId, stemText: eq.question.stemText,
+          subjectName: eq.question.subject?.name ?? null,
+          topicName: eq.question.topic?.name ?? null,
           choices: order.map((orig, i) => ({ letter: String.fromCharCode(65 + i), text: choiceMap.get(orig) ?? '', isCorrect: orig === eq.correctChoice })),
           selectedChoice: eq.answer?.selectedChoice ?? null,
           correctChoicePresented: order.indexOf(eq.correctChoice) >= 0 ? String.fromCharCode(65 + order.indexOf(eq.correctChoice)) : null,
           isCorrect: eq.answer?.isCorrect ?? null,
           isBookmarked: eq.answer?.isBookmarked ?? false,
           wasAnswered: !!eq.answer?.selectedChoice,
+          timeSpentSec: eq.answer?.timeSpentSec ?? null,
+          // Full engineering context for premium Review Mode.
           explanation: eq.question.explanationText,
+          engineeringNotes,
+          aiTutorExplanation,
+          commonMistakes,
+          boardTips: (eq.question.intelligence?.studyTips as string[] | undefined) ?? [],
+          timeSavingTips: eq.question.intelligence?.timeSavingTips ?? null,
+          formulas: (eq.question.questionFormulas as any[]).map((f) => ({
+            name: f.formula.name, slug: f.formula.slug,
+            latex: f.formula.expressionLatex, text: f.formula.expressionText,
+            isPrimary: f.isPrimary,
+          })),
+          diagram: figureByCode.get(eq.question.questionCode) ?? null,
         };
       });
 

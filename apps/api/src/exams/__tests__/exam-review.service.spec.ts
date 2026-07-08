@@ -5,7 +5,7 @@ import { ExamReviewService } from '../services/exam-review.service';
 const eqRow = (over = {}) => ({
   id: 'eq-1', position: 0, questionId: 'q-1', choiceOrder: ['A', 'B', 'C', 'D'], correctChoice: 'A',
   answer: { selectedChoice: 'B', isCorrect: false, isBookmarked: false },
-  question: { stemText: 'Stem?', correctChoice: 'A', explanationText: 'Because.', choices: [{ choiceLetter: 'A', choiceText: 'a' }, { choiceLetter: 'B', choiceText: 'b' }, { choiceLetter: 'C', choiceText: 'c' }, { choiceLetter: 'D', choiceText: 'd' }] },
+  question: { questionCode: 'Q-T-1', stemText: 'Stem?', correctChoice: 'A', explanationText: 'Because.', subject: { name: 'Test Subject', code: 'T' }, topic: { name: 'Test Topic' }, intelligence: null, questionFormulas: [], choices: [{ choiceLetter: 'A', choiceText: 'a' }, { choiceLetter: 'B', choiceText: 'b' }, { choiceLetter: 'C', choiceText: 'c' }, { choiceLetter: 'D', choiceText: 'd' }] },
   ...over,
 });
 
@@ -14,7 +14,8 @@ function mocks() {
     mockExam: { findUnique: vi.fn().mockResolvedValue({ id: 'ex-1', userId: 'u-1', status: 'submitted' }) },
     examQuestion: { findMany: vi.fn().mockResolvedValue([eqRow()]) },
   };
-  return { prisma, svc: new ExamReviewService(prisma as never) };
+  const diagrams = { resolveMany: vi.fn().mockResolvedValue(new Map()) };
+  return { prisma, svc: new ExamReviewService(prisma as never, diagrams as never) };
 }
 
 describe('ExamReviewService', () => {

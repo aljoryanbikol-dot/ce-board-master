@@ -21,6 +21,10 @@ function formatClock(totalSec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+type SaveState = 'saved' | 'saving' | 'retrying' | 'offline';
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 export function ExamRunner({ examId }: { examId: string }) {
   const router = useRouter();
   const [exam, setExam] = useState<ExamData | null>(null);
@@ -29,6 +33,7 @@ export function ExamRunner({ examId }: { examId: string }) {
   const [flags, setFlags] = useState<Set<string>>(new Set());
   const [remaining, setRemaining] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>('saved');
   // Wall-clock deadline, not a tick counter — setInterval alone drifts (browsers
   // throttle/suspend timers on backgrounded tabs), which could show a student
   // minutes of "remaining" time after the real deadline already passed.
@@ -77,6 +82,13 @@ export function ExamRunner({ examId }: { examId: string }) {
     submitInFlight.current = true;
     setSubmitting(true);
     try {
+      // Flush any unsaved answers before submitting (up to ~8s). If some
+      // still can't reach the server (e.g. offline), proceed anyway — the
+      // deadline path must never deadlock — and the server scores whatever
+      // it has received.
+      for (let waited = 0; saveQueue.current.size > 0 && waited < 8_000; waited += 250) {
+        await sleep(250);
+      }
       await examsApi.submit(examId);
       toast.success('Exam submitted', 'Your results are ready.');
       router.replace(`/exams/${examId}/result`);
@@ -111,10 +123,66 @@ export function ExamRunner({ examId }: { examId: string }) {
     };
   }, [exam, expiresAt, submit]);
 
-  async function choose(eqId: string, choice: string) {
+  // ── Durable autosave queue ──────────────────────────────────────────────
+  // An answer click must NEVER be lost to a transient failure (network blip,
+  // brief backend deploy window, token refresh race). Every selection goes
+  // into a per-question queue (newest choice wins) that a single processor
+  // drains with exponential-backoff retries, pausing while offline and
+  // resuming on the browser's 'online' event. The UI shows Saving/Saved/
+  // Retrying/Offline instead of a one-shot "Autosave failed" toast.
+  const saveQueue = useRef(new Map<string, string>());
+  const draining = useRef(false);
+
+  const drainQueue = useCallback(async () => {
+    if (draining.current) return;
+    draining.current = true;
+    let attempt = 0;
+    try {
+      while (saveQueue.current.size > 0) {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          setSaveState('offline');
+          await new Promise<void>((resolve) => {
+            const onUp = () => { window.removeEventListener('online', onUp); resolve(); };
+            window.addEventListener('online', onUp);
+          });
+        }
+        const next = saveQueue.current.entries().next().value as [string, string] | undefined;
+        if (!next) break;
+        const [eqId, choice] = next;
+        setSaveState(attempt > 0 ? 'retrying' : 'saving');
+        try {
+          await examsApi.answer(examId, { examQuestionId: eqId, selectedChoice: choice });
+          // Only clear if the student hasn't picked a newer choice meanwhile.
+          if (saveQueue.current.get(eqId) === choice) saveQueue.current.delete(eqId);
+          attempt = 0;
+        } catch {
+          attempt += 1;
+          setSaveState('retrying');
+          await sleep(Math.min(15_000, 1_000 * 2 ** attempt));
+        }
+      }
+      setSaveState('saved');
+    } finally {
+      draining.current = false;
+      // A choice made while the final request was in flight needs a new drain.
+      if (saveQueue.current.size > 0) void drainQueue();
+    }
+  }, [examId]);
+
+  // Resume retries the moment connectivity returns, and warn on tab close
+  // while answers are still unsaved.
+  useEffect(() => {
+    const kick = () => { if (saveQueue.current.size > 0) void drainQueue(); };
+    const warn = (e: BeforeUnloadEvent) => { if (saveQueue.current.size > 0) e.preventDefault(); };
+    window.addEventListener('online', kick);
+    window.addEventListener('beforeunload', warn);
+    return () => { window.removeEventListener('online', kick); window.removeEventListener('beforeunload', warn); };
+  }, [drainQueue]);
+
+  function choose(eqId: string, choice: string) {
     setAnswers((a) => ({ ...a, [eqId]: choice }));
-    try { await examsApi.answer(examId, { examQuestionId: eqId, selectedChoice: choice }); } // autosave
-    catch { toast.error('Autosave failed', 'Your answer may not be recorded.'); }
+    saveQueue.current.set(eqId, choice);
+    void drainQueue();
   }
 
   async function toggleFlag(eqId: string) {
@@ -135,7 +203,17 @@ export function ExamRunner({ examId }: { examId: string }) {
       <PageHeader
         title="Mock Exam"
         description={`Question ${idx + 1} of ${exam.questions.length} · ${answeredCount} answered`}
-        action={<Badge variant={remaining < 300 ? 'destructive' : 'muted'} className="gap-1 text-sm"><Clock className="h-3.5 w-3.5" />{formatClock(remaining)}</Badge>}
+        action={
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={saveState === 'saved' ? 'success' : saveState === 'saving' ? 'muted' : 'warning'}
+              className="gap-1 text-xs"
+            >
+              {saveState === 'saved' ? 'Saved' : saveState === 'saving' ? 'Saving…' : saveState === 'retrying' ? 'Retrying…' : 'Offline — will retry'}
+            </Badge>
+            <Badge variant={remaining < 300 ? 'destructive' : 'muted'} className="gap-1 text-sm"><Clock className="h-3.5 w-3.5" />{formatClock(remaining)}</Badge>
+          </div>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_220px]">
