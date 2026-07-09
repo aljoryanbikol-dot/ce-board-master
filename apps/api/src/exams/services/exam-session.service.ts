@@ -43,7 +43,11 @@ export class ExamSessionService {
     await this.featureAccess.enforceMockExamQuota(userId);
     const config = await this.resolveConfig(userId, dto);
 
-    const built = await this.mockExam.buildQuestions({ kind: dto.kind, composition: config.composition, randomizeChoices: config.randomizeChoices });
+    // PRC board forms carry a curated ordered question list — build from it
+    // verbatim; everything else samples from the composition.
+    const built = config.formQuestionCodes && config.formQuestionCodes.length > 0
+      ? await this.mockExam.buildFixedForm(config.formQuestionCodes)
+      : await this.mockExam.buildQuestions({ kind: dto.kind, composition: config.composition, randomizeChoices: config.randomizeChoices });
 
     const exam = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const created = await tx.mockExam.create({
@@ -224,11 +228,15 @@ export class ExamSessionService {
     }
   }
 
-  private async resolveConfig(userId: string, dto: StartExamDto): Promise<{ composition: CompositionEntry[]; durationMinutes: number; passingScore: number; randomizeChoices: boolean; templateId?: string; title: string }> {
+  private async resolveConfig(userId: string, dto: StartExamDto): Promise<{ composition: CompositionEntry[]; durationMinutes: number; passingScore: number; randomizeChoices: boolean; templateId?: string; title: string; formQuestionCodes?: string[] }> {
     if (dto.templateId) {
       const t = await this.mockExam.getTemplate(dto.templateId);
       if (!t.isActive) throw ExamErrors.templateInactive(dto.templateId);
-      return { composition: t.composition as unknown as CompositionEntry[], durationMinutes: t.durationMinutes, passingScore: t.passingScore, randomizeChoices: t.randomizeChoices, templateId: t.id, title: t.name };
+      // PRC board form: explicit ordered question list from the Content SDK.
+      const formQuestionCodes = Array.isArray((t as { formQuestionCodes?: unknown }).formQuestionCodes)
+        ? ((t as { formQuestionCodes: string[] }).formQuestionCodes)
+        : undefined;
+      return { composition: t.composition as unknown as CompositionEntry[], durationMinutes: t.durationMinutes, passingScore: t.passingScore, randomizeChoices: t.randomizeChoices, templateId: t.id, title: t.name, formQuestionCodes };
     }
     const passingScore = dto.passingScore ?? EXAM_LIMITS.DEFAULT_PASSING_SCORE;
     const durationMinutes = dto.durationMinutes ?? 180;

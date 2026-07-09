@@ -18,7 +18,10 @@ export const studentNav: NavSection[] = [
     label: 'Learn',
     items: [
       { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { label: 'Continue Learning', href: '/learn', icon: BookOpen },
+      // 'Continue Learning' is intentionally hidden until it ships as a true
+      // AI-powered recommendation engine — the interim page showed generic
+      // topic cards (and placeholder labels for legacy history), which reads
+      // as broken. Route stays live at /learn for direct links.
       { label: 'Fundamentals Handbook', href: '/handbook', icon: Library },
       { label: 'Practice', href: '/practice', icon: Dumbbell },
       { label: 'Mock Exams', href: '/exams', icon: FileText },

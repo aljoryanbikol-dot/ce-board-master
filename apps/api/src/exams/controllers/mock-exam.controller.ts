@@ -2,7 +2,7 @@
  * @file mock-exam.controller.ts
  * @module Exams/Controllers
  */
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { MockExamService } from '../services/mock-exam.service';
 import { ExamSessionService } from '../services/exam-session.service';
@@ -38,6 +38,22 @@ export class MockExamController {
   @ApiOperation({ summary: 'List active exam templates' })
   async listTemplates() {
     return this.mockExam.listTemplates();
+  }
+
+  @Get('board-forms')
+  @Permissions(PERM.EXAM_TAKE)
+  @ApiOperation({ summary: 'Paginated PRC board-form picker (CE-PRCFORM templates)' })
+  async listBoardForms(@Query('page') page?: string, @Query('limit') limit?: string) {
+    const p = Math.max(1, Number(page) || 1);
+    const l = Math.min(50, Math.max(1, Number(limit) || 20));
+    return this.mockExam.listBoardForms(p, l);
+  }
+
+  @Get('board-forms/random')
+  @Permissions(PERM.EXAM_TAKE)
+  @ApiOperation({ summary: 'Pick one random PRC board form' })
+  async randomBoardForm() {
+    return this.mockExam.randomBoardForm();
   }
 
   @Get('templates/:id')

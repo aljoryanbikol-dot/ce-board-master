@@ -1,9 +1,10 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { Award, Play, History as HistoryIcon, Target, BookOpen } from 'lucide-react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { Award, Play, History as HistoryIcon, Target, BookOpen, Shuffle, CalendarDays } from 'lucide-react';
 import { useExamTemplates, useExamHistory } from '../hooks/use-exams';
-import { examsApi, type ExamTemplate } from '../api/exams-api';
+import { examsApi, type ExamTemplate, type BoardForm } from '../api/exams-api';
 import { studentApi } from '@/features/student/api/student-api';
 import { PageHeader } from '@/components/common/page-header';
 import { QueryBoundary } from '@/components/common/query-boundary';
@@ -53,6 +54,85 @@ function paperDistribution(t: ExamTemplate, paperBySubjectId: Map<string, string
 const PAPER_BAR_CLASS: Record<string, string> = {
   MSTE: 'bg-chart-1', HGE: 'bg-chart-2', PSSEC: 'bg-chart-3',
 };
+
+/**
+ * PRC Board Examination Mode — 1,000 curated board forms from the Content
+ * SDK, each an exact 150-item exam in the official day/session structure
+ * (DAY 1 MSTE · DAY 2 PSSEC · DAY 2 HGE) with fixed question order and
+ * difficulty progression. Paginated browser + one-click random form.
+ */
+function BoardExamMode({ onStart, creating }: { onStart: (templateId: string) => void; creating: string | null }) {
+  const [page, setPage] = useState(1);
+  const forms = useQuery({
+    queryKey: ['exams', 'board-forms', page],
+    queryFn: () => examsApi.boardForms(page, 12),
+    placeholderData: keepPreviousData,
+  });
+  const [randomBusy, setRandomBusy] = useState(false);
+  const total = forms.data?.total ?? 0;
+  if (!forms.isLoading && total === 0) return null;
+  const pages = Math.max(1, Math.ceil(total / 12));
+
+  async function startRandom() {
+    setRandomBusy(true);
+    try {
+      const f = await examsApi.randomBoardForm();
+      onStart(f.id);
+    } catch { /* toast handled by onStart path errors */ } finally {
+      setRandomBusy(false);
+    }
+  }
+
+  return (
+    <section>
+      <Card className="border-primary bg-primary/5">
+        <CardContent className="p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="flex items-center gap-2 font-display text-lg font-semibold tracking-tight">
+                <CalendarDays className="h-5 w-5 text-primary" /> PRC Board Examination Mode
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                {total.toLocaleString()} official-structure board forms — DAY 1 Morning (MSTE), DAY 2 Morning (PSSEC),
+                DAY 2 Afternoon (HGE). 150 items each, fixed order, graduated difficulty. Exactly like exam day.
+              </p>
+            </div>
+            <Button onClick={startRandom} disabled={randomBusy || creating !== null}>
+              {randomBusy ? <Spinner className="text-primary-foreground" /> : <><Shuffle className="h-4 w-4" /> Start a random form</>}
+            </Button>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {(forms.data?.items ?? []).map((f: BoardForm) => (
+              <button
+                key={f.id}
+                onClick={() => onStart(f.id)}
+                disabled={creating !== null}
+                className="rounded-lg border bg-background p-3 text-left text-sm transition-colors hover:border-primary/60 disabled:opacity-60"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs font-semibold">{f.code.replace('CE-PRCFORM-', 'Form ')}</span>
+                  {creating === f.id ? <Spinner /> : <Play className="h-3.5 w-3.5 text-primary" />}
+                </div>
+                <p className="mt-1 text-2xs text-muted-foreground">
+                  {f.totalQuestions} items · {formatDuration(f.durationMinutes)} · pass {f.passingScore}%
+                </p>
+              </button>
+            ))}
+          </div>
+
+          {pages > 1 ? (
+            <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+              <span>Forms page {page} of {pages}</span>
+              <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next</Button>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
 
 export function ExamsList() {
   const router = useRouter();
@@ -137,6 +217,9 @@ export function ExamsList() {
         <TabsContent value="available">
           <QueryBoundary isLoading={templates.isLoading} isError={templates.isError} isEmpty={all.length === 0} emptyTitle="No exam templates yet" emptyDescription="Check back soon — new mock boards are added regularly.">
             <div className="space-y-10">
+
+              {/* ── 0. PRC Board Examination Mode (SDK forms) ────────────── */}
+              <BoardExamMode onStart={(templateId) => startExam(templateId, 'full_board')} creating={creating} />
 
               {/* ── 1. PRC Board Simulations ─────────────────────────────── */}
               {boardSims.length > 0 && (

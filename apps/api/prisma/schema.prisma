@@ -2284,6 +2284,12 @@ model ExamTemplate {
   randomizeChoices Boolean  @default(true) @map("randomize_choices")
   // Composition: ordered [{ subjectId, count, difficultyLevelId? , weightPercent? }]
   composition     Json
+  /// PRC board forms (Content SDK BOARD-SIMULATIONS): explicit ORDERED
+  /// questionCode list — when present the exam builder uses these exact
+  /// questions in sequence instead of sampling from `composition`.
+  formQuestionCodes Json? @map("form_question_codes")
+  /// PRC session structure (days/sessions/subjects/timing) for display.
+  formStructure     Json? @map("form_structure")
   isActive        Boolean  @default(true) @map("is_active")
   createdBy       String?  @db.Uuid @map("created_by")
   version         Int      @default(1) @db.SmallInt

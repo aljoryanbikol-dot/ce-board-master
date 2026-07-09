@@ -61,7 +61,36 @@ export class MockExamService {
   }
 
   async listTemplates() {
-    return this.prisma.examTemplate.findMany({ where: { isActive: true }, orderBy: { createdAt: 'desc' } });
+    // PRC board forms (1,000 CE-PRCFORM-### templates) are browsed through
+    // the dedicated paginated picker, not the general template list.
+    return this.prisma.examTemplate.findMany({
+      where: { isActive: true, NOT: { code: { startsWith: 'CE-PRCFORM-' } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Paginated PRC board-form picker (+ random form selection support). */
+  async listBoardForms(page: number, limit: number) {
+    const where = { isActive: true, code: { startsWith: 'CE-PRCFORM-' } };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.examTemplate.findMany({
+        where, orderBy: { code: 'asc' },
+        skip: (page - 1) * limit, take: limit,
+        select: { id: true, code: true, name: true, totalQuestions: true, durationMinutes: true, passingScore: true, formStructure: true },
+      }),
+      this.prisma.examTemplate.count({ where }),
+    ]);
+    return { items, total, page, limit };
+  }
+
+  /** One random active PRC board form (exam-day roulette). */
+  async randomBoardForm() {
+    const where = { isActive: true, code: { startsWith: 'CE-PRCFORM-' } };
+    const total = await this.prisma.examTemplate.count({ where });
+    if (total === 0) throw ExamErrors.templateNotFound('board-form');
+    const skip = Math.floor(Math.random() * total);
+    const rows = await this.prisma.examTemplate.findMany({ where, orderBy: { code: 'asc' }, skip, take: 1, select: { id: true, code: true, name: true } });
+    return rows[0]!;
   }
 
   async getTemplate(id: string) {
@@ -103,6 +132,34 @@ export class MockExamService {
   }
 
   // ── Composition resolution ──────────────────────────────────────────────────
+
+  /**
+   * PRC board forms: resolve an explicit ORDERED questionCode list into built
+   * exam questions, preserving the form's curated sequence (difficulty
+   * progression comes from the Content SDK — no shuffling, no choice
+   * randomization).
+   */
+  async buildFixedForm(questionCodes: string[]): Promise<BuiltExamQuestion[]> {
+    const rows = await this.prisma.question.findMany({
+      where: { questionCode: { in: questionCodes }, deletedAt: null, questionStatus: 'published' },
+      select: { id: true, questionCode: true, subjectId: true, topicId: true, difficultyLevelId: true, learningObjective: true, correctChoice: true, choices: { select: { choiceLetter: true }, orderBy: { sortOrder: 'asc' } } },
+    });
+    const byCode = new Map(rows.map((q) => [q.questionCode, q]));
+    const missing = questionCodes.filter((c) => !byCode.has(c));
+    if (missing.length > 0) {
+      throw ExamErrors.insufficientQuestions(`Board form references ${missing.length} unavailable question(s), e.g. ${missing.slice(0, 3).join(', ')}.`);
+    }
+    return questionCodes.map((code, i) => {
+      const q = byCode.get(code)!;
+      const letters = q.choices.length > 0 ? q.choices.map((ch) => ch.choiceLetter) : ['A', 'B', 'C', 'D'];
+      return {
+        questionId: q.id, position: i, subjectId: q.subjectId, topicId: q.topicId,
+        difficultyLevelId: q.difficultyLevelId, learningObjective: q.learningObjective,
+        choiceOrder: [...letters], correctChoice: q.correctChoice,
+        weightPercent: null,
+      } as BuiltExamQuestion & { weightPercent: number | null };
+    });
+  }
 
   /** Resolve a build request's composition into concrete, randomized questions. */
   async buildQuestions(req: BuildRequest): Promise<BuiltExamQuestion[]> {
