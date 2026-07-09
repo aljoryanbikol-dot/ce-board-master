@@ -106,7 +106,7 @@ export function HandbookView() {
 
         <TabsContent value="memorize">
           <p className="mb-4 text-sm text-muted-foreground">
-            The formulas most often required by real board questions in each subject — master these before exam day.
+            The formulas most often required by board-style questions in each subject — master these before exam day.
           </p>
           <QueryBoundary isLoading={memorize.isLoading} isError={memorize.isError} isEmpty={(memorize.data?.length ?? 0) === 0} emptyTitle="Nothing yet" emptyDescription="Must-memorize lists appear as question links accumulate.">
             <div className="space-y-6">

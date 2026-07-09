@@ -29,7 +29,7 @@ const HERO_STATS = [
 
 /** Drawing-sheet feature cards — engineering disciplines + platform tools. */
 const SHEETS = [
-  { no: 'SHT-01', icon: ClipboardCheck, label: 'Board Simulations', body: 'Full 3-paper PRC forms — official Day 1 / Day 2 structure.' },
+  { no: 'SHT-01', icon: ClipboardCheck, label: 'Board Simulations', body: 'Full 3-paper practice forms patterned after the PRC Day 1 / Day 2 structure.' },
   { no: 'SHT-02', icon: Library, label: 'Fundamentals Handbook', body: 'Formulas, constants, symbols, glossary, review sheets.' },
   { no: 'SHT-03', icon: Sigma, label: 'Formula Library', body: '1,600+ formulas with variables, units, and derivations.' },
   { no: 'SHT-04', icon: Building2, label: 'Structural Engineering', body: 'Analysis, RC & steel design, NSCP-aligned problems.' },
@@ -43,7 +43,7 @@ const PROOF = [
   'Thousands of board-quality engineering problems',
   'Complete Fundamentals Handbook',
   'Professional engineering illustrations on ~84% of items',
-  'Real PRC board simulation experience',
+  'PRC-patterned board simulation experience',
   'AI-powered learning on every question',
 ];
 
@@ -249,7 +249,7 @@ export default function HomePage() {
         <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 lg:grid-cols-2">
           <div>
             <p className="font-mono text-xs font-semibold tracking-[0.3em] text-amber-600">PRC BOARD SIMULATION LIBRARY</p>
-            <h2 className="mt-3 text-3xl font-extrabold tracking-tight">1,000 complete board forms. The real Day 1 / Day 2 structure.</h2>
+            <h2 className="mt-3 text-3xl font-extrabold tracking-tight">1,000 board simulation sets. Patterned after the PRC Day 1 / Day 2 structure.</h2>
             <p className="mt-4 text-slate-600">
               Every form is a fixed 150-item PRC-style examination: Day 1 Morning MSTE,
               Day 2 Morning PSSEC, Day 2 Afternoon HGE — with board-level difficulty

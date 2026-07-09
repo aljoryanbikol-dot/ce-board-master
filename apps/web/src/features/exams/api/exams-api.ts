@@ -22,7 +22,7 @@ export const examsApi = {
   templates: () => api.data<ExamTemplate[]>(api.get('/exams/templates')),
   boardForms: (page = 1, limit = 12) => api.data<{ items: BoardForm[]; total: number; page: number; limit: number }>(api.get('/exams/board-forms', { query: { page, limit } })),
   randomBoardForm: () => api.data<{ id: string; code: string; name: string }>(api.get('/exams/board-forms/random')),
-  create: (body: { kind: string; templateId?: string; subjectId?: string; totalQuestions?: number; durationMinutes?: number }) =>
+  create: (body: { kind: string; templateId?: string; subjectId?: string; totalQuestions?: number; durationMinutes?: number; boardDay?: 'day1' | 'day2' }) =>
     api.data<ExamSummary>(api.post('/exams', body)),
   get: (id: string) => api.data(api.get(`/exams/${id}`)),
   questions: (id: string) => api.data(api.get(`/exams/${id}/questions`)),

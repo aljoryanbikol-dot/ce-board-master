@@ -2,7 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { Award, Play, History as HistoryIcon, Target, BookOpen, Shuffle, CalendarDays } from 'lucide-react';
+import { Award, Play, History as HistoryIcon, Target, BookOpen, Shuffle, ClipboardList, Trophy, Sun, Sunset } from 'lucide-react';
 import { useExamTemplates, useExamHistory } from '../hooks/use-exams';
 import { examsApi, type ExamTemplate, type BoardForm } from '../api/exams-api';
 import { studentApi } from '@/features/student/api/student-api';
@@ -56,12 +56,71 @@ const PAPER_BAR_CLASS: Record<string, string> = {
 };
 
 /**
- * PRC Board Examination Mode — 1,000 curated board forms from the Content
- * SDK, each an exact 150-item exam in the official day/session structure
- * (DAY 1 MSTE · DAY 2 PSSEC · DAY 2 HGE) with fixed question order and
- * difficulty progression. Paginated browser + one-click random form.
+ * 1. PRC Board Exam Experience — the featured section. An educational
+ *    simulation inspired by the CE licensure exam format (NOT the official
+ *    PRC exam): start the complete two-day experience, or a single day.
  */
-function BoardExamMode({ onStart, creating }: { onStart: (templateId: string) => void; creating: string | null }) {
+function BoardExamExperience({ onStart, creating }: { onStart: (templateId: string, boardDay?: 'day1' | 'day2') => void; creating: string | null }) {
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function startRandom(boardDay?: 'day1' | 'day2') {
+    const key = boardDay ?? 'complete';
+    setBusy(key);
+    try {
+      const f = await examsApi.randomBoardForm();
+      onStart(f.id, boardDay);
+    } catch { /* toast handled by onStart path errors */ } finally {
+      setBusy(null);
+    }
+  }
+
+  const options: Array<{ key: string; icon: typeof Trophy; title: string; body: string; day?: 'day1' | 'day2' }> = [
+    { key: 'complete', icon: Trophy, title: 'Complete Board Experience', body: 'All 150 items across both simulated exam days — the full preparation experience.' },
+    { key: 'day1', icon: Sun, title: 'Day 1', body: 'Morning session — Mathematics, Surveying, Transportation & Economics (MSTE).', day: 'day1' },
+    { key: 'day2', icon: Sunset, title: 'Day 2', body: 'Structural Design & Construction (PSSEC) plus Hydraulics & Geotechnical (HGE).', day: 'day2' },
+  ];
+
+  return (
+    <section>
+      <Card className="border-amber-500/50 bg-gradient-to-br from-amber-500/10 to-transparent">
+        <CardContent className="p-6">
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold tracking-tight">
+            <Trophy className="h-5 w-5 text-amber-500" /> PRC Board Exam Experience
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            An educational simulation inspired by the Civil Engineering Licensure Examination format —
+            with the two-day session structure, timing, and passing rules. This is a practice
+            simulation from our question bank, not the official PRC examination.
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {options.map((o) => (
+              <button
+                key={o.key}
+                onClick={() => startRandom(o.day)}
+                disabled={busy !== null || creating !== null}
+                className="rounded-lg border bg-background p-4 text-left transition-colors hover:border-amber-500/60 disabled:opacity-60"
+              >
+                <div className="flex items-center justify-between">
+                  <o.icon className="h-5 w-5 text-amber-500" />
+                  {busy === o.key ? <Spinner /> : <Play className="h-4 w-4 text-muted-foreground" />}
+                </div>
+                <p className="mt-2 text-sm font-semibold">{o.title}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{o.body}</p>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+/**
+ * 2. PRC Board Simulations — the 1,000 curated simulation sets from the
+ *    Content SDK, each a fixed 150-item practice examination patterned after
+ *    the PRC day/session structure. Paginated browser + one-click random set.
+ */
+function BoardSimulationSets({ onStart, creating }: { onStart: (templateId: string) => void; creating: string | null }) {
   const [page, setPage] = useState(1);
   const forms = useQuery({
     queryKey: ['exams', 'board-forms', page],
@@ -90,15 +149,15 @@ function BoardExamMode({ onStart, creating }: { onStart: (templateId: string) =>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="flex items-center gap-2 font-display text-lg font-semibold tracking-tight">
-                <CalendarDays className="h-5 w-5 text-primary" /> PRC Board Examination Mode
+                <ClipboardList className="h-5 w-5 text-primary" /> PRC Board Simulations
               </h2>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                {total.toLocaleString()} official-structure board forms — DAY 1 Morning (MSTE), DAY 2 Morning (PSSEC),
-                DAY 2 Afternoon (HGE). 150 items each, fixed order, graduated difficulty. Exactly like exam day.
+                {total.toLocaleString()} board simulation sets patterned after the PRC structure — Day 1 Morning (MSTE),
+                Day 2 Morning (PSSEC), Day 2 Afternoon (HGE). 150 items each, fixed order, graduated difficulty.
               </p>
             </div>
             <Button onClick={startRandom} disabled={randomBusy || creating !== null}>
-              {randomBusy ? <Spinner className="text-primary-foreground" /> : <><Shuffle className="h-4 w-4" /> Start a random form</>}
+              {randomBusy ? <Spinner className="text-primary-foreground" /> : <><Shuffle className="h-4 w-4" /> Start a random set</>}
             </Button>
           </div>
 
@@ -111,7 +170,7 @@ function BoardExamMode({ onStart, creating }: { onStart: (templateId: string) =>
                 className="rounded-lg border bg-background p-3 text-left text-sm transition-colors hover:border-primary/60 disabled:opacity-60"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-semibold">{f.code.replace('CE-PRCFORM-', 'Form ')}</span>
+                  <span className="font-mono text-xs font-semibold">{f.code.replace('CE-PRCFORM-', 'Set ')}</span>
                   {creating === f.id ? <Spinner /> : <Play className="h-3.5 w-3.5 text-primary" />}
                 </div>
                 <p className="mt-1 text-2xs text-muted-foreground">
@@ -124,7 +183,7 @@ function BoardExamMode({ onStart, creating }: { onStart: (templateId: string) =>
           {pages > 1 ? (
             <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
               <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-              <span>Forms page {page} of {pages}</span>
+              <span>Sets page {page} of {pages}</span>
               <Button variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next</Button>
             </div>
           ) : null}
@@ -185,10 +244,10 @@ export function ExamsList() {
     return { boardSims: board, subjectGroups: groupBy(subject), topicGroups: groupBy(topic) };
   }, [all]);
 
-  async function startExam(templateId: string, kind: string) {
+  async function startExam(templateId: string, kind: string, boardDay?: 'day1' | 'day2') {
     setCreating(templateId);
     try {
-      const exam = await examsApi.create({ kind, templateId }) as { examId: string };
+      const exam = await examsApi.create({ kind, templateId, boardDay }) as { examId: string };
       router.push(`/exams/${exam.examId}`);
     } catch (err) {
       toast.fromError(err, 'Could not create the exam');
@@ -207,7 +266,7 @@ export function ExamsList() {
 
   return (
     <div>
-      <PageHeader title="Mock Exams" description="PRC board simulations, subject mock exams, and topic drills under real timing and scoring." />
+      <PageHeader title="Mock Exams" description="Board exam experience, board simulations, subject mock exams, and topic drills — with board-style timing and scoring." />
       <Tabs defaultValue="available">
         <TabsList>
           <TabsTrigger value="available">Available</TabsTrigger>
@@ -218,18 +277,21 @@ export function ExamsList() {
           <QueryBoundary isLoading={templates.isLoading} isError={templates.isError} isEmpty={all.length === 0} emptyTitle="No exam templates yet" emptyDescription="Check back soon — new mock boards are added regularly.">
             <div className="space-y-10">
 
-              {/* ── 0. PRC Board Examination Mode (SDK forms) ────────────── */}
-              <BoardExamMode onStart={(templateId) => startExam(templateId, 'full_board')} creating={creating} />
+              {/* ── 1. PRC Board Exam Experience (featured) ──────────────── */}
+              <BoardExamExperience onStart={(templateId, boardDay) => startExam(templateId, 'full_board', boardDay)} creating={creating} />
 
-              {/* ── 1. PRC Board Simulations ─────────────────────────────── */}
+              {/* ── 2. PRC Board Simulations — 1,000 simulation sets ─────── */}
+              <BoardSimulationSets onStart={(templateId) => startExam(templateId, 'full_board')} creating={creating} />
+
+              {/* ── 2b. Engineered simulation papers ─────────────────────── */}
               {boardSims.length > 0 && (
                 <section>
                   <div className="mb-1 flex items-center gap-2">
                     <Award className="h-5 w-5 text-primary" />
-                    <h2 className="font-display text-lg font-semibold tracking-tight">PRC Board Simulations</h2>
+                    <h2 className="font-display text-lg font-semibold tracking-tight">Engineered Simulation Papers</h2>
                   </div>
                   <p className="mb-4 text-sm text-muted-foreground">
-                    Full board examinations under official PRC structure — MSTE, HGE, and PSSEC papers with board-level timing, difficulty, and passing rules.
+                    Practice examinations patterned after the PRC three-paper structure — MSTE, HGE, and PSSEC — with board-style timing, difficulty, and passing rules.
                   </p>
                   <div className="grid gap-5 md:grid-cols-2">
                     {boardSims.map((t, i) => {
@@ -321,9 +383,9 @@ export function ExamsList() {
                 <section>
                   <div className="mb-1 flex items-center gap-2">
                     <Target className="h-5 w-5 text-muted-foreground" />
-                    <h2 className="font-display text-lg font-semibold tracking-tight">Topic Mock Exams</h2>
+                    <h2 className="font-display text-lg font-semibold tracking-tight">Topic Drills</h2>
                   </div>
-                  <p className="mb-4 text-sm text-muted-foreground">Focused drills on a single topic or category — sharpen weak areas before a full simulation.</p>
+                  <p className="mb-4 text-sm text-muted-foreground">Focused practice by topic — sharpen weak areas before a full simulation.</p>
                   <div className="space-y-6">
                     {topicGroups.map(([group, list]) => (
                       <div key={group}>

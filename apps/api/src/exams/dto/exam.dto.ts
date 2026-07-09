@@ -56,6 +56,8 @@ export const StartExamSchema = z.object({
   totalQuestions: z.coerce.number().int().min(EXAM_LIMITS.MIN_QUESTIONS).max(EXAM_LIMITS.MAX_QUESTIONS).optional(),
   durationMinutes: z.coerce.number().int().min(EXAM_LIMITS.MIN_DURATION_MIN).max(EXAM_LIMITS.MAX_DURATION_MIN).optional(),
   passingScore: z.coerce.number().min(EXAM_LIMITS.MIN_PASSING_SCORE).max(EXAM_LIMITS.MAX_PASSING_SCORE).optional(),
+  // For PRC board-form templates: take only one exam day's sessions.
+  boardDay: z.enum(['day1', 'day2']).optional(),
 }).refine((d) => d.templateId || d.kind === 'full_board' || d.kind === 'adaptive' || d.kind === 'ai_generated' || d.subjectId || (d.composition && d.composition.length > 0), {
   message: 'Provide a templateId, a subjectId, or a composition (unless full_board/adaptive/ai_generated).',
 });
@@ -121,6 +123,7 @@ export class StartExamDtoClass {
   @ApiPropertyOptional({ type: Number }) totalQuestions?: number;
   @ApiPropertyOptional({ type: Number }) durationMinutes?: number;
   @ApiPropertyOptional({ type: Number }) passingScore?: number;
+  @ApiPropertyOptional({ enum: ['day1', 'day2'], description: 'Board-form templates only: take a single exam day' }) boardDay?: 'day1' | 'day2';
 }
 export class SaveAnswerDtoClass {
   @ApiProperty() examQuestionId!: string;

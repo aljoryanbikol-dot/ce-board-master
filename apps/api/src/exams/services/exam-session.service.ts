@@ -233,10 +233,30 @@ export class ExamSessionService {
       const t = await this.mockExam.getTemplate(dto.templateId);
       if (!t.isActive) throw ExamErrors.templateInactive(dto.templateId);
       // PRC board form: explicit ordered question list from the Content SDK.
-      const formQuestionCodes = Array.isArray((t as { formQuestionCodes?: unknown }).formQuestionCodes)
+      let formQuestionCodes = Array.isArray((t as { formQuestionCodes?: unknown }).formQuestionCodes)
         ? ((t as { formQuestionCodes: string[] }).formQuestionCodes)
         : undefined;
-      return { composition: t.composition as unknown as CompositionEntry[], durationMinutes: t.durationMinutes, passingScore: t.passingScore, randomizeChoices: t.randomizeChoices, templateId: t.id, title: t.name, formQuestionCodes };
+      let durationMinutes = t.durationMinutes;
+      let title = t.name;
+      // Optional single-day slice: formStructure sessions are ordered the same
+      // way as formQuestionCodes, so a day is a contiguous prefix/suffix.
+      const structure = (t as { formStructure?: Array<{ day?: string; session_items?: number; session_time_min?: number }> }).formStructure;
+      if (dto.boardDay && formQuestionCodes && Array.isArray(structure) && structure.length > 0) {
+        const isDay1 = (s: { day?: string }) => /1/.test(s.day ?? '');
+        const day1Sessions = structure.filter(isDay1);
+        const day2Sessions = structure.filter((s) => !isDay1(s));
+        const day1Count = day1Sessions.reduce((n, s) => n + (s.session_items ?? 0), 0);
+        const pick = dto.boardDay === 'day1' ? day1Sessions : day2Sessions;
+        if (pick.length > 0 && day1Count > 0 && day1Count < formQuestionCodes.length) {
+          formQuestionCodes = dto.boardDay === 'day1'
+            ? formQuestionCodes.slice(0, day1Count)
+            : formQuestionCodes.slice(day1Count);
+          const minutes = pick.reduce((n, s) => n + (s.session_time_min ?? 0), 0);
+          durationMinutes = minutes > 0 ? Math.min(minutes, EXAM_LIMITS.MAX_DURATION_MIN) : Math.round(t.durationMinutes * (formQuestionCodes.length / ((t as { formQuestionCodes: string[] }).formQuestionCodes.length || 1)));
+          title = `${t.name} — ${dto.boardDay === 'day1' ? 'Day 1 (MSTE)' : 'Day 2 (PSSEC + HGE)'}`;
+        }
+      }
+      return { composition: t.composition as unknown as CompositionEntry[], durationMinutes, passingScore: t.passingScore, randomizeChoices: t.randomizeChoices, templateId: t.id, title, formQuestionCodes };
     }
     const passingScore = dto.passingScore ?? EXAM_LIMITS.DEFAULT_PASSING_SCORE;
     const durationMinutes = dto.durationMinutes ?? 180;
