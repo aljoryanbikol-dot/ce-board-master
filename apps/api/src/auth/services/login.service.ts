@@ -56,7 +56,7 @@ export interface LoginResult {
 
 /** Argon2id dummy hash — ensures timing is constant for unknown emails */
 const DUMMY_HASH =
-  '$argon2id$v=19$m=65536,t=3,p=4$dGVzdHNhbHQ$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  '$argon2id$v=19$m=19456,t=2,p=1$dGVzdHNhbHQ$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 @Injectable()
 export class LoginService {
@@ -148,6 +148,19 @@ export class LoginService {
         code: AUTH_ERROR_CODES.INVALID_CREDENTIALS,
         message: 'Incorrect email or password.',
       });
+    }
+
+    // ── 4b. Progressive rehash ────────────────────────────────────────────────
+    // Hashes created under the legacy 64MB/t3/p4 profile verify in ~1.5s on
+    // the production vCPU. After a successful verify we re-hash with the
+    // current (cheaper, still OWASP-compliant) parameters so the next login
+    // is fast. Fire-and-forget: a rehash failure must never block login.
+    if (this.passwordService.needsRehash(user.passwordHash)) {
+      this.passwordService
+        .hash(password)
+        .then((newHash) => this.prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } }))
+        .then(() => this.logger.log({ message: 'Password hash upgraded to current Argon2 params', userId: user.id }))
+        .catch((err) => this.logger.warn({ message: 'Progressive rehash failed', userId: user.id, error: err instanceof Error ? err.message : 'unknown' }));
     }
 
     // ── 5. Account status checks ──────────────────────────────────────────────

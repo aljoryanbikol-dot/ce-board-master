@@ -32,6 +32,8 @@ const mockPrisma = {
 
 const mockPasswordService = {
   verify: vi.fn(),
+  needsRehash: vi.fn().mockReturnValue(false),
+  hash: vi.fn().mockResolvedValue('$argon2id$rehashed'),
 };
 
 const mockTokenService = {

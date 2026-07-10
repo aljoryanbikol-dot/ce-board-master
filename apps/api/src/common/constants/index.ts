@@ -30,12 +30,19 @@ export const AUTH = {
   MAX_FAILED_ATTEMPTS: 5,
   /** Failed attempts window in seconds (15 minutes) */
   FAILED_ATTEMPTS_WINDOW: 900,
-  /** Argon2id memory cost (64MB) */
-  ARGON2_MEMORY_COST: 65_536,
+  /**
+   * Argon2id parameters — OWASP's second recommended configuration
+   * (m=19456 KB / t=2 / p=1). The original 64MB/t3/p4 profile took ~1.5s
+   * per verification on the production host's small vCPU, making every
+   * login feel broken; this profile verifies in a few hundred ms while
+   * staying OWASP-compliant. Old hashes are transparently upgraded on the
+   * next successful login (see LoginService progressive rehash).
+   */
+  ARGON2_MEMORY_COST: 19_456,
   /** Argon2id time cost */
-  ARGON2_TIME_COST: 3,
+  ARGON2_TIME_COST: 2,
   /** Argon2id parallelism */
-  ARGON2_PARALLELISM: 4,
+  ARGON2_PARALLELISM: 1,
 } as const;
 
 // ── Subscription ──────────────────────────────────────────────────────────────

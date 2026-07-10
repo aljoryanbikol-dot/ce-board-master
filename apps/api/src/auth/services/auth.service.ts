@@ -37,7 +37,7 @@ import { AUTH_ERROR_CODES } from '../auth.constants';
 
 /** Argon2id dummy hash used in validateCredentials to maintain timing parity */
 const DUMMY_HASH =
-  '$argon2id$v=19$m=65536,t=3,p=4$dGVzdHNhbHQ$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  '$argon2id$v=19$m=19456,t=2,p=1$dGVzdHNhbHQ$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 @Injectable()
 export class AuthService implements IAuthService {

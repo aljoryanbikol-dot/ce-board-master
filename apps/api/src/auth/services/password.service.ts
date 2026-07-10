@@ -77,6 +77,24 @@ export class PasswordService implements IPasswordService {
   }
 
   /**
+   * True when a stored hash was created with different (e.g. legacy 64MB)
+   * parameters than the current AUTH constants. Callers should rehash the
+   * plaintext after a successful verify so slow legacy hashes are upgraded
+   * transparently over time.
+   */
+  needsRehash(hash: string): boolean {
+    try {
+      return argon2.needsRehash(hash, {
+        memoryCost: AUTH.ARGON2_MEMORY_COST,
+        timeCost: AUTH.ARGON2_TIME_COST,
+        parallelism: AUTH.ARGON2_PARALLELISM,
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Validate password strength against platform requirements.
    * @param password - The password to validate
    */
