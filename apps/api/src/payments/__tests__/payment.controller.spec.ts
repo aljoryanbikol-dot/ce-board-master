@@ -6,25 +6,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PaymentProviderType } from '@prisma/client';
 import { PaymentController } from '../controllers/payment.controller';
-import { PaymentService } from '../services/payment.service';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { PermissionGuard } from '../../rbac/guards/permission.guard';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 const mockPaymentService = { listForUser: vi.fn(), getById: vi.fn(), verifyPayment: vi.fn(), handleWebhook: vi.fn() };
 const user = { id: 'user-1', email: 'u@test.com', role: 'subscriber', subscriptionTier: 'free' };
 const allow = { canActivate: () => true };
 
+const mockManual = { getConfig: vi.fn(), submit: vi.fn(), mine: vi.fn(), listPending: vi.fn(), approve: vi.fn(), reject: vi.fn() };
+
+// Direct construction: the guards are exercised at the framework layer, and
+// building a full Nest testing module here dragged in the payments module's
+// circular graph for no additional coverage.
 async function build() {
-  const moduleRef: TestingModule = await Test.createTestingModule({
-    controllers: [PaymentController],
-    providers: [{ provide: PaymentService, useValue: mockPaymentService }],
-  })
-    .overrideGuard(JwtAuthGuard).useValue(allow)
-    .overrideGuard(RolesGuard).useValue(allow)
-    .overrideGuard(PermissionGuard).useValue(allow)
-    .compile();
-  return moduleRef.get(PaymentController);
+  return new PaymentController(mockPaymentService as never, mockManual as never);
 }
 
 describe('PaymentController', () => {

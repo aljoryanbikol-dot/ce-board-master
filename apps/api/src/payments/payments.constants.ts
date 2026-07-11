@@ -16,6 +16,10 @@ export const PAYMENT_ERROR_CODES = {
 
 export type PaymentErrorCode = (typeof PAYMENT_ERROR_CODES)[keyof typeof PAYMENT_ERROR_CODES];
 
+/** Direct-GCash payee shown to buyers — number only, holder name never displayed. */
+export const MANUAL_GCASH_NUMBER = process.env.MANUAL_GCASH_NUMBER ?? '09564890446';
+export const MANUAL_GCASH_LABEL = 'CE Board Master';
+
 /** Redis key prefix for idempotency-key reservation (replay protection). */
 export const IDEMPOTENCY_CACHE_PREFIX = 'payments:idem:' as const;
 

@@ -15,6 +15,8 @@
  * account holder's personal name is deliberately never exposed.
  */
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import {
   PaymentMethodType, PaymentProviderType, PaymentStatus, SubscriptionStatus,
 } from '@prisma/client';
@@ -22,11 +24,10 @@ import { PrismaService } from '../../database/prisma.service';
 import { PaymentService } from './payment.service';
 import { PaymentErrors } from '../payments.errors';
 import { PlanService } from '../../subscriptions/services/plan.service';
+import { QUEUE_NAMES } from '../../queue/queue.module';
+import { MANUAL_GCASH_NUMBER as GCASH_NUMBER, MANUAL_GCASH_LABEL as GCASH_LABEL } from '../payments.constants';
+import type { GcashSubmittedEmailPayload } from '../../auth/services/email.service';
 import type { AuthenticatedUser } from '../../auth/auth.types';
-
-/** Personal GCash payee — number only; the holder's name is never displayed. */
-const GCASH_NUMBER = process.env.MANUAL_GCASH_NUMBER ?? '09564890446';
-const GCASH_LABEL = 'CE Board Master';
 
 @Injectable()
 export class ManualPaymentService {
@@ -36,6 +37,7 @@ export class ManualPaymentService {
     private readonly prisma: PrismaService,
     private readonly paymentService: PaymentService,
     private readonly planService: PlanService,
+    @InjectQueue(QUEUE_NAMES.EMAIL) private readonly emailQueue: Queue,
   ) {}
 
   /** Payment instructions shown on the checkout dialog. */
@@ -96,6 +98,16 @@ export class ManualPaymentService {
     });
 
     this.logger.log({ message: 'Manual GCash payment submitted', paymentId: payment.id, userId: user.id, plan: plan.slug });
+
+    // Confirmation email (fire-and-forget; queue retries handle transient failures)
+    const emailPayload: GcashSubmittedEmailPayload = {
+      type: 'gcash_submitted', to: user.email, planName: plan.name,
+      amountMinor: plan.priceMinor, referenceNo,
+    };
+    this.emailQueue
+      .add('send-email', emailPayload, { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true })
+      .catch((err) => this.logger.warn({ message: 'Could not enqueue gcash_submitted email', error: String(err) }));
+
     return {
       paymentId: payment.id,
       status: payment.status,

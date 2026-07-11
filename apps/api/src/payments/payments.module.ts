@@ -14,6 +14,8 @@
  * both sides.
  */
 import { Module, forwardRef } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
+import { QUEUE_NAMES } from '../queue/queue.module';
 import { AuthModule } from '../auth/auth.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { BillingModule } from '../billing/billing.module';
@@ -33,6 +35,9 @@ import { PAYMENT_PROVIDERS } from './types/payment-provider.interface';
     RbacModule,
     BillingModule,
     forwardRef(() => SubscriptionModule),
+    // Producer registration for the transactional email queue (payment
+    // instructions, GCash submission receipts, activation notices).
+    BullModule.registerQueue({ name: QUEUE_NAMES.EMAIL }),
   ],
   controllers: [PaymentController],
   providers: [

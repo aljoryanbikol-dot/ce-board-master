@@ -51,10 +51,39 @@ export interface PasswordChangedEmailPayload {
   changedAt: string;
 }
 
+export interface GcashInstructionsEmailPayload {
+  type: 'gcash_instructions';
+  to: string;
+  planName: string;
+  amountMinor: number;
+  gcashNumber: string;
+  gcashLabel: string;
+  subscriptionUrl: string;
+  checkoutUrl?: string | null;
+}
+
+export interface GcashSubmittedEmailPayload {
+  type: 'gcash_submitted';
+  to: string;
+  planName: string;
+  amountMinor: number;
+  referenceNo: string;
+}
+
+export interface PaymentApprovedEmailPayload {
+  type: 'payment_approved';
+  to: string;
+  planName: string;
+  dashboardUrl: string;
+}
+
 export type EmailJobPayload =
   | VerificationEmailPayload
   | PasswordResetEmailPayload
-  | PasswordChangedEmailPayload;
+  | PasswordChangedEmailPayload
+  | GcashInstructionsEmailPayload
+  | GcashSubmittedEmailPayload
+  | PaymentApprovedEmailPayload;
 
 @Injectable()
 export class EmailService {

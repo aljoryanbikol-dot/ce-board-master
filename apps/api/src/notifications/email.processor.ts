@@ -93,6 +93,46 @@ function render(payload: EmailJobPayload): { subject: string; html: string } {
            <p style="font-size:14px;line-height:1.6;">If this was you, no action is needed. If you did not make this change, reset your password immediately and contact support.</p>`,
         ),
       };
+    case 'gcash_instructions': {
+      const amount = `₱${(payload.amountMinor / 100).toFixed(2)}`;
+      return {
+        subject: `Paano magbayad ng ${payload.planName} — CE Board Master`,
+        html: layout(
+          `Halos tapos ka na! Dalawang paraan para magbayad`,
+          `<p style="font-size:14px;line-height:1.6;">Sinimulan mo ang pag-upgrade sa <strong>${payload.planName}</strong> (${amount}). Piliin ang mas madali para sa'yo:</p>
+           <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:16px;margin:16px 0;">
+             <p style="margin:0 0 8px;font-size:14px;font-weight:bold;">Option 1 — GCash send (pinakamabilis sa cellphone)</p>
+             <p style="margin:0;font-size:14px;line-height:1.7;">
+               I-send ang eksaktong <strong>${amount}</strong> sa GCash number na ito:<br>
+               <span style="font-size:20px;font-weight:bold;letter-spacing:1px;">${payload.gcashNumber}</span> <span style="color:#6b7280;">(${payload.gcashLabel})</span><br>
+               Pagkatapos, ilagay ang GCash Reference No. mo dito:
+             </p>
+             ${button(payload.subscriptionUrl, 'I-submit ang reference number')}
+           </div>
+           ${payload.checkoutUrl ? `<p style="font-size:14px;line-height:1.6;"><strong>Option 2 — Card / bank QR:</strong> ituloy ang secure checkout:</p>${button(payload.checkoutUrl, 'Ituloy ang checkout')}` : ''}
+           <p style="font-size:12px;color:#6b7280;">Kapag na-verify ang bayad mo, awtomatikong maa-activate ang Premium mo.</p>`,
+        ),
+      };
+    }
+    case 'gcash_submitted':
+      return {
+        subject: 'Natanggap namin ang GCash payment mo — CE Board Master',
+        html: layout(
+          `Salamat! Vine-verify na ang bayad mo`,
+          `<p style="font-size:14px;line-height:1.6;">Na-submit mo ang GCash payment para sa <strong>${payload.planName}</strong> (₱${(payload.amountMinor / 100).toFixed(2)}) na may Reference No. <strong style="font-family:monospace;">${payload.referenceNo}</strong>.</p>
+           <p style="font-size:14px;line-height:1.6;">Ive-verify namin ito at awtomatikong maa-activate ang Premium mo — karaniwan sa loob ng ilang oras. Papadalhan ka namin ng email pagka-activate.</p>`,
+        ),
+      };
+    case 'payment_approved':
+      return {
+        subject: 'Premium mo ay ACTIVE na! 🎉 — CE Board Master',
+        html: layout(
+          `Welcome to ${payload.planName}!`,
+          `<p style="font-size:14px;line-height:1.6;">Na-verify na ang bayad mo at <strong>active na ang ${payload.planName} mo</strong>. Bukas na ang lahat: unlimited questions, 1,000 board simulations, ang buong Fundamentals Handbook, at unlimited AI Tutor.</p>
+           ${button(payload.dashboardUrl, 'Simulan ang review')}
+           <p style="font-size:12px;color:#6b7280;">Good luck sa board exam — kaya mo yan!</p>`,
+        ),
+      };
   }
 }
 

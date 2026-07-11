@@ -18,10 +18,12 @@ const mockBilling = { generateInvoiceForPayment: vi.fn().mockResolvedValue({ id:
 const mockSubscription = { activateAfterPayment: vi.fn().mockResolvedValue({ planName: 'Pro', periodStart: new Date(), periodEnd: new Date() }) };
 const mockUserRole = { hasPermission: vi.fn().mockResolvedValue(true) };
 const mockEvents = { emit: vi.fn() };
+const mockEmailQueue = { add: vi.fn().mockResolvedValue({}) };
 
 const build = () => new PaymentService(
   mockPrisma as never, mockCache as never, mockFactory as never,
   mockBilling as never, mockSubscription as never, mockUserRole as never, mockEvents as never,
+  mockEmailQueue as never,
 );
 
 const requester = { id: 'user-1', email: 'u@test.com', role: 'subscriber', subscriptionTier: 'free' as const };

@@ -17,6 +17,8 @@
  *   → generate invoice + receipt → record audit log → publish payment.completed
  */
 import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   PaymentStatus,
@@ -36,7 +38,11 @@ import { PaymentErrors } from '../payments.errors';
 import {
   IDEMPOTENCY_CACHE_PREFIX,
   IDEMPOTENCY_TTL,
+  MANUAL_GCASH_NUMBER,
+  MANUAL_GCASH_LABEL,
 } from '../payments.constants';
+import { QUEUE_NAMES } from '../../queue/queue.module';
+import type { GcashInstructionsEmailPayload, PaymentApprovedEmailPayload } from '../../auth/services/email.service';
 import type { ListPaymentsQueryDto } from '../dto/payment.dto';
 import type { AuthenticatedUser } from '../../auth/auth.types';
 import type { NormalizedWebhookEvent } from '../types/payment-provider.interface';
@@ -69,7 +75,15 @@ export class PaymentService {
     private readonly subscriptionService: SubscriptionService,
     private readonly userRoleService: UserRoleService,
     private readonly eventEmitter: EventEmitter2,
+    @InjectQueue(QUEUE_NAMES.EMAIL) private readonly emailQueue: Queue,
   ) {}
+
+  /** Enqueue a transactional email without ever blocking the payment path. */
+  private enqueueEmail(payload: GcashInstructionsEmailPayload | PaymentApprovedEmailPayload): void {
+    this.emailQueue
+      .add('send-email', payload, { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true })
+      .catch((err) => this.logger.warn({ message: 'Could not enqueue email', type: payload.type, error: String(err) }));
+  }
 
   // ── Create payment ──────────────────────────────────────────────────────────
 
@@ -148,6 +162,22 @@ export class PaymentService {
     });
 
     await this.log(payment.id, 'checkout_created', PaymentStatus.pending, PaymentStatus.processing, params.userId);
+
+    // Automatic payment-instructions email: many buyers browse on a phone and
+    // cannot scan a QR shown on the same screen, so every checkout email also
+    // offers the direct-GCash path with the reference-number submission link.
+    const frontend = process.env.FRONTEND_URL ?? 'https://www.ceboardmaster.com';
+    this.enqueueEmail({
+      type: 'gcash_instructions',
+      to: params.customerEmail,
+      planName: params.description,
+      amountMinor: params.amountMinor,
+      gcashNumber: MANUAL_GCASH_NUMBER,
+      gcashLabel: MANUAL_GCASH_LABEL,
+      subscriptionUrl: `${frontend}/subscription`,
+      checkoutUrl: updated.checkoutUrl,
+    });
+
     return this.toDto(updated);
   }
 
@@ -268,6 +298,21 @@ export class PaymentService {
     if (outcome === 'approve') await this.markSucceeded(payment, event);
     else await this.markFailed(payment, event);
     await this.log(payment.id, `manual_${outcome}`, PaymentStatus.processing, outcome === 'approve' ? PaymentStatus.succeeded : PaymentStatus.failed, actorId);
+
+    if (outcome === 'approve') {
+      const buyer = await this.prisma.user.findUnique({ where: { id: payment.userId }, select: { email: true } });
+      const plan = payment.subscriptionId
+        ? await this.prisma.subscription.findUnique({ where: { id: payment.subscriptionId }, select: { plan: { select: { name: true } } } })
+        : null;
+      if (buyer) {
+        this.enqueueEmail({
+          type: 'payment_approved',
+          to: buyer.email,
+          planName: plan?.plan?.name ?? 'Premium',
+          dashboardUrl: `${process.env.FRONTEND_URL ?? 'https://www.ceboardmaster.com'}/dashboard`,
+        });
+      }
+    }
 
     const fresh = await this.prisma.payment.findUnique({ where: { id: paymentId } });
     return this.toDto(fresh!);
