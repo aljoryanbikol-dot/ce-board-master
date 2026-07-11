@@ -1210,6 +1210,7 @@ enum PaymentProviderType {
   xendit
   stripe
   mock
+  manual
 
   @@map("payment_provider_type")
 }

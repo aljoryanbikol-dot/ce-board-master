@@ -243,6 +243,36 @@ export class PaymentService {
     return this.toDto(fresh!);
   }
 
+  // ── Manual (GCash) settlement ───────────────────────────────────────────────
+
+  /**
+   * Settle a manual (direct-GCash) payment after an admin has checked the
+   * transfer in their GCash app. Reuses the exact same success/failure
+   * side-effect pipeline as provider webhooks (activate subscription,
+   * invoice, events), so an approved manual payment behaves identically to
+   * a gateway payment.
+   */
+  async settleManualPayment(paymentId: string, actorId: string, outcome: 'approve' | 'reject', reason?: string) {
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) throw PaymentErrors.notFound(paymentId);
+    if (payment.providerType !== PaymentProviderType.manual) throw PaymentErrors.notFound(paymentId);
+    if (payment.status !== PaymentStatus.processing) return this.toDto(payment); // idempotent
+
+    const event: NormalizedWebhookEvent = {
+      eventId: `manual_${outcome}_${payment.id}`,
+      eventType: outcome === 'approve' ? 'manual.approved' : (reason ?? 'manual.rejected'),
+      paymentId: payment.id, providerRef: payment.providerRef,
+      outcome: outcome === 'approve' ? 'succeeded' : 'failed',
+      method: 'gcash' as never, payload: { actorId },
+    };
+    if (outcome === 'approve') await this.markSucceeded(payment, event);
+    else await this.markFailed(payment, event);
+    await this.log(payment.id, `manual_${outcome}`, PaymentStatus.processing, outcome === 'approve' ? PaymentStatus.succeeded : PaymentStatus.failed, actorId);
+
+    const fresh = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    return this.toDto(fresh!);
+  }
+
   // ── Queries ─────────────────────────────────────────────────────────────────
 
   async listForUser(requester: AuthenticatedUser, targetUserId: string, query: ListPaymentsQueryDto) {

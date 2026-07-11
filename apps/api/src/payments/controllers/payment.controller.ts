@@ -20,6 +20,8 @@ import {
 } from '@nestjs/swagger';
 import { PaymentProviderType } from '@prisma/client';
 import { PaymentService } from '../services/payment.service';
+import { ManualPaymentService } from '../services/manual-payment.service';
+import { z } from 'zod';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { PermissionGuard } from '../../rbac/guards/permission.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -33,6 +35,12 @@ import { PERM, ROLE_SLUGS } from '../../rbac/rbac.constants';
 import type { AuthenticatedUser } from '../../auth/auth.types';
 import type { FastifyRequest } from 'fastify';
 
+const SubmitManualSchema = z.object({
+  planId: z.string().uuid(),
+  referenceNo: z.string().trim().min(6).max(30).regex(/^[A-Za-z0-9 ]+$/),
+});
+const RejectManualSchema = z.object({ reason: z.string().trim().max(300).optional() });
+
 const ALL_ROLES = [
   ROLE_SLUGS.SUPER_ADMIN, ROLE_SLUGS.ADMIN, ROLE_SLUGS.CONTENT_ADMIN,
   ROLE_SLUGS.CONTENT_AUTHOR, ROLE_SLUGS.REVIEWER, ROLE_SLUGS.SUBSCRIBER, ROLE_SLUGS.FREE_USER,
@@ -41,7 +49,89 @@ const ALL_ROLES = [
 @ApiTags('Payments')
 @Controller('payments')
 export class PaymentController {
-  constructor(private readonly paymentService: PaymentService) {}
+  constructor(
+    private readonly paymentService: PaymentService,
+    private readonly manualPayments: ManualPaymentService,
+  ) {}
+
+  // ── Manual GCash payments (student) ─────────────────────────────────────────
+
+  @Get('manual/config')
+  @UseGuards(RolesGuard, PermissionGuard)
+  @ApiBearerAuth('access-token')
+  @Roles(...ALL_ROLES)
+  @Permissions(PERM.SUBSCRIPTIONS_READ)
+  @ApiOperation({ summary: 'Manual GCash payment instructions' })
+  async manualConfig() {
+    return this.manualPayments.getConfig();
+  }
+
+  @Post('manual')
+  @UseGuards(RolesGuard, PermissionGuard)
+  @ApiBearerAuth('access-token')
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(...ALL_ROLES)
+  @Permissions(PERM.SUBSCRIPTIONS_READ)
+  @ApiOperation({ summary: 'Submit a GCash transfer for verification' })
+  async submitManual(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() _q: unknown,
+    @Req() req: FastifyRequest,
+  ) {
+    const dto = SubmitManualSchema.parse(req.body);
+    return this.manualPayments.submit(user, dto);
+  }
+
+  @Get('manual/mine')
+  @UseGuards(RolesGuard, PermissionGuard)
+  @ApiBearerAuth('access-token')
+  @Roles(...ALL_ROLES)
+  @Permissions(PERM.SUBSCRIPTIONS_READ)
+  @ApiOperation({ summary: 'My manual GCash submissions' })
+  async myManual(@CurrentUser() user: AuthenticatedUser) {
+    return this.manualPayments.mine(user.id);
+  }
+
+  // ── Manual GCash payments (admin) ───────────────────────────────────────────
+
+  @Get('manual/pending')
+  @UseGuards(RolesGuard, PermissionGuard)
+  @ApiBearerAuth('access-token')
+  @Roles(ROLE_SLUGS.SUPER_ADMIN, ROLE_SLUGS.ADMIN)
+  @Permissions(PERM.SUBSCRIPTIONS_MANAGE)
+  @ApiOperation({ summary: 'Pending manual GCash payments queue' })
+  async pendingManual() {
+    return this.manualPayments.listPending();
+  }
+
+  @Post('manual/:id/approve')
+  @UseGuards(RolesGuard, PermissionGuard)
+  @ApiBearerAuth('access-token')
+  @HttpCode(HttpStatus.OK)
+  @Roles(ROLE_SLUGS.SUPER_ADMIN, ROLE_SLUGS.ADMIN)
+  @Permissions(PERM.SUBSCRIPTIONS_MANAGE)
+  @ApiOperation({ summary: 'Approve a manual GCash payment (activates the plan)' })
+  @ApiParam({ name: 'id' })
+  async approveManual(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.manualPayments.approve(id, user);
+  }
+
+  @Post('manual/:id/reject')
+  @UseGuards(RolesGuard, PermissionGuard)
+  @ApiBearerAuth('access-token')
+  @HttpCode(HttpStatus.OK)
+  @Roles(ROLE_SLUGS.SUPER_ADMIN, ROLE_SLUGS.ADMIN)
+  @Permissions(PERM.SUBSCRIPTIONS_MANAGE)
+  @ApiOperation({ summary: 'Reject a manual GCash payment' })
+  @ApiParam({ name: 'id' })
+  async rejectManual(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: FastifyRequest,
+  ) {
+    const dto = RejectManualSchema.parse(req.body ?? {});
+    return this.manualPayments.reject(id, user, dto.reason);
+  }
 
   // ── Authenticated payment queries ───────────────────────────────────────────
 

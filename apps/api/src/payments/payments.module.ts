@@ -20,6 +20,7 @@ import { BillingModule } from '../billing/billing.module';
 import { SubscriptionModule } from '../subscriptions/subscriptions.module';
 import { PaymentController } from './controllers/payment.controller';
 import { PaymentService } from './services/payment.service';
+import { ManualPaymentService } from './services/manual-payment.service';
 import { PaymentProviderFactory } from './services/payment-provider.factory';
 import { MockPaymentProvider } from './providers/mock-payment.provider';
 import { PayMongoProvider } from './providers/paymongo.provider';
@@ -49,6 +50,7 @@ import { PAYMENT_PROVIDERS } from './types/payment-provider.interface';
     },
     PaymentProviderFactory,
     PaymentService,
+    ManualPaymentService,
   ],
   exports: [PaymentService, PaymentProviderFactory],
 })

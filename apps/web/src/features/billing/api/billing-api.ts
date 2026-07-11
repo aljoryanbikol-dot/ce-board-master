@@ -27,7 +27,24 @@ export interface SubscribeResult {
   payment: { id: string; checkoutUrl: string | null; status: string } | null;
 }
 
+export interface ManualGcashConfig {
+  method: string; accountLabel: string; accountNumber: string; instructions: string[];
+}
+export interface ManualSubmission {
+  id: string; amountMinor: number; status: string; referenceNo: string | null;
+  createdAt: string; paidAt: string | null;
+}
+export interface ManualPendingRow {
+  id: string; email: string; plan: string; amountMinor: number; referenceNo: string; submittedAt: string;
+}
+
 export const billingApi = {
+  manualConfig: () => api.data<ManualGcashConfig>(api.get('/payments/manual/config')),
+  manualSubmit: (body: { planId: string; referenceNo: string }) => api.data<{ paymentId: string; status: string; message: string }>(api.post('/payments/manual', body)),
+  manualMine: () => api.data<ManualSubmission[]>(api.get('/payments/manual/mine')),
+  manualPending: () => api.data<ManualPendingRow[]>(api.get('/payments/manual/pending')),
+  manualApprove: (id: string) => api.data(api.post(`/payments/manual/${id}/approve`, {})),
+  manualReject: (id: string, reason?: string) => api.data(api.post(`/payments/manual/${id}/reject`, { reason })),
   subscription: () => api.data<Subscription | null>(api.get('/subscriptions/me')),
   invoices: () => api.data<Invoice[]>(api.get('/billing/invoices')),
   plans: () => api.data<Plan[]>(api.get('/plans')),
