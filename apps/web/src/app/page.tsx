@@ -48,10 +48,10 @@ const PROOF = [
 ];
 
 const PLANS = [
-  { name: 'Free', price: '₱0', period: 'forever', highlight: false, features: ['100 practice questions', '1 mock examination', 'AI Tutor starter', 'Handbook previews'] },
-  { name: 'Premium Monthly', price: '₱199', period: 'per month', highlight: true, features: ['Unlimited questions & mock exams', '1,000 PRC board simulation forms', 'Unlimited AI Tutor', 'Full Fundamentals Handbook', 'Complete review mode & analytics'] },
-  { name: 'Premium Quarterly', price: '₱499', period: 'per 3 months', highlight: false, features: ['Everything in Premium', 'Save ₱98 vs monthly'] },
-  { name: 'Board Pass', price: '₱999', period: 'until exam day', highlight: false, features: ['Everything in Premium', 'Valid until the next PRC CE exam'] },
+  { name: 'Free', price: '₱0', period: 'forever', highlight: false, badge: null, features: ['100 practice questions', '1 mock examination', 'AI Tutor starter', 'Handbook previews'] },
+  { name: 'Premium Monthly', price: '₱99', period: 'per month', highlight: true, badge: 'MOST POPULAR', features: ['Unlimited questions & mock exams', '1,000 PRC board simulation forms', 'Unlimited AI Tutor', 'Full Fundamentals Handbook', 'Complete review mode & analytics'] },
+  { name: 'Premium Quarterly', price: '₱249', period: 'per 3 months', highlight: false, badge: 'SAVE ₱48', features: ['Everything in Premium', 'One payment for a full quarter'] },
+  { name: 'Board Pass', price: '₱349', period: 'until exam day', highlight: false, badge: 'BEST VALUE', features: ['Everything in Premium', 'Valid until the next PRC CE exam', 'No renewals to think about'] },
 ];
 
 /** Blueprint drafting grid (major/minor lines) as a data-URI-free SVG pattern. */
@@ -181,14 +181,18 @@ export default function HomePage() {
               1,000 full board simulations, a Fundamentals Handbook, and an AI tutor
               grounded in the same engineering knowledge base.
             </p>
+            <p className="mt-3 font-mono text-sm text-amber-300">
+              Premium is just ₱99/month — less than a single review book.
+            </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link href="/register" className="inline-flex items-center gap-2 rounded-md bg-amber-400 px-8 py-3.5 text-base font-bold text-slate-900 shadow-lg shadow-amber-400/20 transition-colors hover:bg-amber-300">
                 Start free practice <ArrowRight className="h-4 w-4" />
               </Link>
-              <a href="#sheets" className="inline-flex items-center gap-2 rounded-md border border-slate-500 px-8 py-3.5 text-base font-semibold text-slate-200 transition-colors hover:border-slate-300 hover:text-white">
-                Explore the platform
+              <a href="#pricing" className="inline-flex items-center gap-2 rounded-md border border-slate-500 px-8 py-3.5 text-base font-semibold text-slate-200 transition-colors hover:border-slate-300 hover:text-white">
+                See Premium — ₱99/mo
               </a>
             </div>
+            <p className="mt-3 text-xs text-slate-400">Free forever plan · No credit card needed to start</p>
 
             {/* Social proof — meaningful metrics, not review stars */}
             <ul className="mt-8 space-y-1.5">
@@ -298,12 +302,16 @@ export default function HomePage() {
       <section id="pricing" className="bg-white py-20">
         <div className="mx-auto max-w-6xl px-4">
           <p className="text-center font-mono text-xs font-semibold tracking-[0.3em] text-sky-700">BILL OF QUANTITIES</p>
-          <h2 className="mt-3 text-center text-3xl font-extrabold tracking-tight">Simple, review-season pricing</h2>
-          <p className="mt-3 text-center text-slate-600">Start free. Upgrade when you&apos;re ready to go all in.</p>
+          <h2 className="mt-3 text-center text-3xl font-extrabold tracking-tight">Serious review, <span className="text-blue-700">₱99 a month</span></h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-slate-600">
+            Traditional review programs cost thousands. CE Board Master Premium gives you
+            2,290+ board-quality questions, 1,000 full PRC-patterned simulations, the complete
+            Fundamentals Handbook, and an unlimited AI tutor — for less than a single review book a month.
+          </p>
           <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {PLANS.map((p) => (
               <div key={p.name} className={`flex flex-col rounded-md border bg-white p-6 shadow-sm ${p.highlight ? 'border-amber-400 ring-2 ring-amber-400/30' : 'border-slate-200'}`}>
-                {p.highlight ? <span className="mb-3 self-start rounded bg-amber-400 px-3 py-1 font-mono text-xs font-bold text-slate-900">MOST POPULAR</span> : null}
+                {p.badge ? <span className={`mb-3 self-start rounded px-3 py-1 font-mono text-xs font-bold ${p.highlight ? 'bg-amber-400 text-slate-900' : 'bg-slate-100 text-slate-600'}`}>{p.badge}</span> : null}
                 <h3 className="text-base font-bold">{p.name}</h3>
                 <p className="mt-2"><span className="font-mono text-3xl font-bold">{p.price}</span> <span className="text-sm text-slate-500">/ {p.period}</span></p>
                 <ul className="mt-4 flex-1 space-y-2">
@@ -319,6 +327,22 @@ export default function HomePage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Final CTA band */}
+      <section className="relative overflow-hidden bg-[#0b1f3a] py-16 text-white">
+        <BlueprintGrid className="absolute inset-0 text-sky-300" />
+        <div className="relative mx-auto max-w-6xl px-4 text-center">
+          <h2 className="text-3xl font-black tracking-tight">The board exam won&apos;t wait. Neither should you.</h2>
+          <p className="mx-auto mt-3 max-w-xl text-slate-300">
+            Start free today — 100 practice questions, a full mock exam, and the AI tutor.
+            Upgrade to Premium for ₱99/month when you&apos;re ready to go all in.
+          </p>
+          <Link href="/register" className="mt-7 inline-flex items-center gap-2 rounded-md bg-amber-400 px-10 py-4 text-lg font-bold text-slate-900 shadow-lg shadow-amber-400/20 transition-colors hover:bg-amber-300">
+            Start my free review <ArrowRight className="h-5 w-5" />
+          </Link>
+          <p className="mt-3 text-xs text-slate-400">No credit card needed · Cancel anytime</p>
         </div>
       </section>
 
