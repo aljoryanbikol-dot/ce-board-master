@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { QueryBoundary } from '@/components/common/query-boundary';
 import { MathText } from '@/components/common/math-text';
 import { DiagramImage, type DiagramImageData } from '@/components/common/diagram-image';
+import { SituationPanel, type SituationData } from '@/components/common/situation-panel';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +27,7 @@ type ReviewFilter = 'all' | 'incorrect' | 'skipped' | 'bookmarked';
 
 interface ReviewItem {
   examQuestionId: string; position: number; stemText: string;
+  situation?: SituationData | null;
   subjectName: string | null; topicName: string | null;
   choices: Array<{ letter: string; text: string; isCorrect: boolean }>;
   selectedChoice: string | null; correctChoicePresented: string | null;
@@ -111,6 +113,7 @@ export function ExamReviewView({ examId }: { examId: string }) {
                   ) : null}
                 </div>
 
+                <SituationPanel situation={q.situation} />
                 <p className="font-medium"><MathText text={q.stemText} /></p>
                 <DiagramImage diagram={q.diagram} />
 

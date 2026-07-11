@@ -71,6 +71,8 @@ export class PracticeSessionService {
         id: true,
         questionCode: true,
         stemText: true,
+        situationOrder: true,
+        situation: { select: { id: true, publicId: true, situationText: true, givenData: true, figurePublicId: true, category: true } },
         choices: {
           select: { choiceLetter: true, choiceText: true },
           orderBy: { sortOrder: 'asc' },
@@ -79,16 +81,61 @@ export class PracticeSessionService {
     });
     const diagramsByCode = await this.diagrams.resolveMany(rows.map((r) => r.questionCode));
     const byId = new Map(rows.map((r) => [r.id, r]));
-    const questions = selectedIds
+    let ordered = selectedIds
       .map((id) => byId.get(id))
-      .filter((r): r is NonNullable<typeof r> => Boolean(r))
-      .map((r) => ({
+      .filter((r): r is NonNullable<typeof r> => Boolean(r));
+
+    // Situational sets read best in board order and adjacent to each other:
+    // cluster same-situation members together (in situationOrder) while
+    // keeping every standalone question in its sampled position.
+    const firstPos = new Map<string, number>();
+    ordered.forEach((r, i) => { if (r.situation && !firstPos.has(r.situation.id)) firstPos.set(r.situation.id, i); });
+    ordered = [...ordered].sort((a, b) => {
+      const pa = a.situation ? firstPos.get(a.situation.id)! : ordered.indexOf(a);
+      const pb = b.situation ? firstPos.get(b.situation.id)! : ordered.indexOf(b);
+      if (pa !== pb) return pa - pb;
+      return (a.situationOrder ?? 0) - (b.situationOrder ?? 0);
+    });
+
+    const sitNumbers = new Map<string, number>();
+    const sitCounts = new Map<string, number>();
+    for (const r of ordered) {
+      if (!r.situation) continue;
+      if (!sitNumbers.has(r.situation.id)) sitNumbers.set(r.situation.id, sitNumbers.size + 1);
+      sitCounts.set(r.situation.id, (sitCounts.get(r.situation.id) ?? 0) + 1);
+    }
+    const figIds = [...new Set(ordered.map((r) => r.situation?.figurePublicId).filter(Boolean))] as string[];
+    const sitFigures = figIds.length
+      ? new Map((await this.prisma.diagram.findMany({ where: { publicId: { in: figIds } }, select: { publicId: true, imageUrl: true, title: true, altText: true } })).map((d) => [d.publicId, d]))
+      : new Map();
+
+    const sitRunning = new Map<string, number>();
+    const questions = ordered.map((r) => {
+      let situation = null;
+      if (r.situation) {
+        const idx = (sitRunning.get(r.situation.id) ?? 0) + 1;
+        sitRunning.set(r.situation.id, idx);
+        const fig = r.situation.figurePublicId ? sitFigures.get(r.situation.figurePublicId) ?? null : null;
+        situation = {
+          publicId: r.situation.publicId,
+          number: sitNumbers.get(r.situation.id) ?? 1,
+          text: r.situation.situationText,
+          givenData: r.situation.givenData ?? null,
+          category: r.situation.category ?? null,
+          questionIndex: idx,
+          questionCount: sitCounts.get(r.situation.id) ?? 1,
+          figure: fig ? { imageUrl: fig.imageUrl, title: fig.title, altText: fig.altText } : null,
+        };
+      }
+      return {
         id: r.id,
         questionId: r.id,
         stemText: r.stemText,
         choices: r.choices.map((c) => ({ key: c.choiceLetter, text: c.choiceText })),
         diagram: diagramsByCode.get(r.questionCode) ?? null,
-      }));
+        situation,
+      };
+    });
 
     return { sessionId: session.id, mode: session.mode, targetCount: session.targetCount, questionIds: selectedIds, questions };
   }

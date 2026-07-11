@@ -53,10 +53,13 @@ export class ExplanationService {
   private async loadPublished(questionId: string) {
     const q = await this.prisma.question.findFirst({
       where: { id: questionId, deletedAt: null },
-      select: { id: true, questionCode: true, subjectId: true, topicId: true, stemText: true, correctChoice: true, explanationText: true, questionStatus: true },
+      select: { id: true, questionCode: true, subjectId: true, topicId: true, stemText: true, correctChoice: true, explanationText: true, questionStatus: true, situation: { select: { situationText: true } } },
     });
     if (!q) throw TutorErrors.questionNotFound(questionId);
     if (q.questionStatus !== 'published') throw TutorErrors.questionNotAvailable(questionId);
+    if ((q as { situation?: { situationText?: string } }).situation?.situationText) q.stemText = `Situation: ${(q as { situation: { situationText: string } }).situation.situationText}
+
+${q.stemText}`;
     return q;
   }
 }

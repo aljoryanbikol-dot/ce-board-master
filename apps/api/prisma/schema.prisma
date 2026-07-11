@@ -645,7 +645,10 @@ model Question {
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt          DateTime?      @map("deleted_at") @db.Timestamptz
+  situationId        String?        @db.Uuid @map("situation_id")
+  situationOrder     Int?           @map("situation_order")
 
+  situation        Situation?           @relation(fields: [situationId], references: [id], onDelete: SetNull)
   subject          Subject              @relation(fields: [subjectId], references: [id], onDelete: Restrict)
   topic            Topic                @relation(fields: [topicId], references: [id], onDelete: Restrict)
   subtopic         Subtopic             @relation(fields: [subtopicId], references: [id], onDelete: Restrict)
@@ -682,7 +685,30 @@ model Question {
   @@index([questionStatus])
   @@index([authorId])
   @@index([publishedAt])
+  @@index([situationId])
   @@map("questions")
+}
+
+/// PRC-style situational scenario shared by several consecutive questions.
+/// Additive (Situational Library v1.0): the situation text is stored once and
+/// linked questions carry situationId + situationOrder.
+model Situation {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicId       String    @unique @map("public_id")
+  subjectId      String    @db.Uuid @map("subject_id")
+  topicId        String?   @db.Uuid @map("topic_id")
+  situationText  String    @map("situation_text")
+  givenData      Json?     @map("given_data")
+  figurePublicId String?   @map("figure_public_id")
+  prcPaper       String?   @map("prc_paper")
+  category       String?
+  sourceProject  String?   @map("source_project")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  questions Question[]
+
+  @@map("situations")
 }
 
 /// The four answer choices for each question (A, B, C, D).

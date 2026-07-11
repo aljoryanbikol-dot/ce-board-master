@@ -1,5 +1,5 @@
 'use client';
-import { Flame, Target, CheckCircle2, AlertTriangle, ArrowRight, Trophy, Award } from 'lucide-react';
+import { Flame, Target, CheckCircle2, AlertTriangle, ArrowRight, Trophy, Award, Layers, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 import { useDashboard, useWeakTopics } from '../hooks/use-student';
 import { DailyPicksRow } from './daily-picks';
@@ -34,6 +34,14 @@ export function DashboardView() {
           <StatCard label="Questions answered" value={d.progress?.totalAnswered ?? 0} icon={CheckCircle2} accent="success" />
           <StatCard label="Weak topics" value={d.weakTopics?.length ?? weak.data?.length ?? 0} icon={AlertTriangle} accent="warning" hint="Focus here next" />
         </div>
+
+        {/* Situational Question Library (platform totals) */}
+        {(d as { library?: { totalSituations?: number; totalSituationalQuestions?: number } }).library?.totalSituations ? (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <StatCard label="Board-style situations" value={(d as { library: { totalSituations: number } }).library.totalSituations} icon={Layers} accent="primary" hint="Linked scenario sets, PRC format" />
+            <StatCard label="Situational questions" value={(d as { library: { totalSituationalQuestions: number } }).library.totalSituationalQuestions} icon={ListChecks} accent="accent" hint="3 linked questions per situation" />
+          </div>
+        ) : null}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-2">

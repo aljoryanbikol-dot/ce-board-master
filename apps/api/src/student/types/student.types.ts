@@ -4,6 +4,8 @@
  */
 
 export interface DashboardSummary {
+  /** Platform-wide Situational Question Library totals. */
+  library: { totalSituations: number; totalSituationalQuestions: number };
   continueLearning: { sessionId: string; mode: string; answeredCount: number; targetCount: number } | null;
   dailyGoal: { target: number; completed: number; percent: number; met: boolean } | null;
   streak: { current: number; longest: number; activeToday: boolean };

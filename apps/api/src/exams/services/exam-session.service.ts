@@ -101,17 +101,62 @@ export class ExamSessionService {
     await this.ownedExam(userId, examId);
     const examQuestions = await this.prisma.examQuestion.findMany({
       where: { examId }, orderBy: { position: 'asc' },
-      include: { answer: true, question: { select: { questionCode: true, stemText: true, choices: { select: { choiceLetter: true, choiceText: true } } } } },
+      include: {
+        answer: true,
+        question: {
+          select: {
+            questionCode: true, stemText: true, situationOrder: true,
+            situation: { select: { id: true, publicId: true, situationText: true, givenData: true, figurePublicId: true, category: true } },
+            choices: { select: { choiceLetter: true, choiceText: true } },
+          },
+        },
+      },
     });
     const diagramsByCode = await this.diagrams.resolveMany(examQuestions.map((eq: any) => eq.question.questionCode));
+
+    // Situational sets: number the situations in exam order and count how
+    // many linked questions of each set are present in THIS exam, so the UI
+    // can render "Situation N — Question X of Y" without repeating the text.
+    const situationNumbers = new Map<string, number>();
+    const situationCounts = new Map<string, number>();
+    for (const eq of examQuestions as any[]) {
+      const sit = eq.question.situation;
+      if (!sit) continue;
+      if (!situationNumbers.has(sit.id)) situationNumbers.set(sit.id, situationNumbers.size + 1);
+      situationCounts.set(sit.id, (situationCounts.get(sit.id) ?? 0) + 1);
+    }
+    const figureIds = [...new Set((examQuestions as any[]).map((eq) => eq.question.situation?.figurePublicId).filter(Boolean))] as string[];
+    const situationFigures = figureIds.length
+      ? new Map((await this.prisma.diagram.findMany({ where: { publicId: { in: figureIds } }, select: { publicId: true, imageUrl: true, title: true, altText: true } })).map((d) => [d.publicId, d]))
+      : new Map();
+
+    const sitRunningIndex = new Map<string, number>();
     return examQuestions.map((eq: any) => {
       const choiceMap = new Map<string, string>(eq.question.choices.map((ch: any) => [ch.choiceLetter, ch.choiceText]));
       const order = eq.choiceOrder as string[];
       const choices = order.map((origLetter, i) => ({ letter: String.fromCharCode(65 + i), text: choiceMap.get(origLetter) ?? '' }));
+      const sit = eq.question.situation;
+      let situation = null;
+      if (sit) {
+        const idx = (sitRunningIndex.get(sit.id) ?? 0) + 1;
+        sitRunningIndex.set(sit.id, idx);
+        const fig = sit.figurePublicId ? situationFigures.get(sit.figurePublicId) ?? null : null;
+        situation = {
+          publicId: sit.publicId,
+          number: situationNumbers.get(sit.id) ?? 1,
+          text: sit.situationText,
+          givenData: sit.givenData ?? null,
+          category: sit.category ?? null,
+          questionIndex: idx,
+          questionCount: situationCounts.get(sit.id) ?? 1,
+          figure: fig ? { imageUrl: fig.imageUrl, title: fig.title, altText: fig.altText } : null,
+        };
+      }
       return {
         examQuestionId: eq.id, position: eq.position, questionId: eq.questionId, stemText: eq.question.stemText,
         choices, state: eq.state, selectedChoice: eq.answer?.selectedChoice ?? null, isBookmarked: eq.answer?.isBookmarked ?? false,
         diagram: diagramsByCode.get(eq.question.questionCode) ?? null,
+        situation,
       };
     });
   }

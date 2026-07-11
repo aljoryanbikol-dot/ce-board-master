@@ -51,6 +51,8 @@ export class ExamReviewService {
         question: {
           select: {
             questionCode: true, stemText: true, correctChoice: true, explanationText: true,
+            situationOrder: true,
+            situation: { select: { id: true, publicId: true, situationText: true, givenData: true, figurePublicId: true, category: true } },
             choices: { select: { choiceLetter: true, choiceText: true } },
             subject: { select: { name: true, code: true } },
             topic: { select: { name: true } },
@@ -70,6 +72,23 @@ export class ExamReviewService {
     // Batch-resolve every question's figure by naming convention (one query).
     const codes = examQuestions.map((eq: any) => eq.question.questionCode as string);
     const figureByCode = await this.diagrams.resolveMany(codes);
+
+    // Situational context: number situations in exam order, count members,
+    // resolve shared situation figures — Review Mode shows the scenario once
+    // per linked set alongside the shared formulas/notes of each question.
+    const sitNumbers = new Map<string, number>();
+    const sitCounts = new Map<string, number>();
+    for (const eq of examQuestions as any[]) {
+      const sit = eq.question.situation;
+      if (!sit) continue;
+      if (!sitNumbers.has(sit.id)) sitNumbers.set(sit.id, sitNumbers.size + 1);
+      sitCounts.set(sit.id, (sitCounts.get(sit.id) ?? 0) + 1);
+    }
+    const sitFigIds = [...new Set((examQuestions as any[]).map((eq) => eq.question.situation?.figurePublicId).filter(Boolean))] as string[];
+    const sitFigures = sitFigIds.length
+      ? new Map((await this.prisma.diagram.findMany({ where: { publicId: { in: sitFigIds } }, select: { publicId: true, imageUrl: true, title: true, altText: true } })).map((d) => [d.publicId, d]))
+      : new Map();
+    const sitRunning = new Map<string, number>();
 
     const items = examQuestions
       .filter((eq: any) => {
@@ -111,6 +130,19 @@ export class ExamReviewService {
             isPrimary: f.isPrimary,
           })),
           diagram: figureByCode.get(eq.question.questionCode) ?? null,
+          situation: (() => {
+            const sit = eq.question.situation;
+            if (!sit) return null;
+            const idx = (sitRunning.get(sit.id) ?? 0) + 1;
+            sitRunning.set(sit.id, idx);
+            const fig = sit.figurePublicId ? sitFigures.get(sit.figurePublicId) ?? null : null;
+            return {
+              publicId: sit.publicId, number: sitNumbers.get(sit.id) ?? 1,
+              text: sit.situationText, givenData: sit.givenData ?? null, category: sit.category ?? null,
+              questionIndex: eq.question.situationOrder ?? idx, questionCount: sitCounts.get(sit.id) ?? 1,
+              figure: fig ? { imageUrl: fig.imageUrl, title: fig.title, altText: fig.altText } : null,
+            };
+          })(),
         };
       });
 

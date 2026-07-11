@@ -6,6 +6,7 @@ import { examsApi } from '../api/exams-api';
 import { PageHeader } from '@/components/common/page-header';
 import { MathText } from '@/components/common/math-text';
 import { DiagramImage, type DiagramImageData } from '@/components/common/diagram-image';
+import { SituationPanel, type SituationData } from '@/components/common/situation-panel';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +14,7 @@ import { LoadingState, Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 
-interface ExamQuestion { examQuestionId: string; stemText: string; choices: Array<{ key: string; text: string }>; diagram?: DiagramImageData | null; }
+interface ExamQuestion { examQuestionId: string; stemText: string; choices: Array<{ key: string; text: string }>; diagram?: DiagramImageData | null; situation?: SituationData | null; }
 interface ExamData { examId: string; durationMinutes: number; questions: ExamQuestion[]; }
 
 function formatClock(totalSec: number): string {
@@ -57,6 +58,7 @@ export function ExamRunner({ examId }: { examId: string }) {
           stemText: String(q.stemText ?? ''),
           choices: ((q.choices as Array<{ key?: string; letter?: string; text: string }>) ?? []).map((c) => ({ key: c.key ?? c.letter ?? '', text: c.text })),
           diagram: (q.diagram as DiagramImageData | null) ?? null,
+          situation: (q.situation as SituationData | null) ?? null,
         }));
         const durationMinutes = Number((meta as { durationMinutes?: number } | null)?.durationMinutes ?? (qsRaw as { durationMinutes?: number })?.durationMinutes ?? 60);
         // Prefer the server-authoritative expiry (it already clamps actual
@@ -219,6 +221,7 @@ export function ExamRunner({ examId }: { examId: string }) {
       <div className="grid gap-6 lg:grid-cols-[1fr_220px]">
         <Card>
           <CardContent className="p-6">
+            <SituationPanel situation={q.situation} />
             <div className="flex items-start justify-between gap-4">
               <p className="font-medium"><MathText text={q.stemText} /></p>
               <Button variant="ghost" size="icon" aria-label="Flag question" onClick={() => toggleFlag(q.examQuestionId)}>

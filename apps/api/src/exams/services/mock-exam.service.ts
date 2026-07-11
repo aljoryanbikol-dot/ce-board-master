@@ -172,9 +172,9 @@ export class MockExamService {
           deletedAt: null, questionStatus: 'published', subjectId: entry.subjectId,
           ...(entry.difficultyLevelId && { difficultyLevelId: entry.difficultyLevelId }),
         },
-        select: { id: true, subjectId: true, topicId: true, difficultyLevelId: true, learningObjective: true, correctChoice: true, choices: { select: { choiceLetter: true }, orderBy: { sortOrder: 'asc' } } },
+        select: { id: true, subjectId: true, topicId: true, difficultyLevelId: true, learningObjective: true, correctChoice: true, situationId: true, situationOrder: true, choices: { select: { choiceLetter: true }, orderBy: { sortOrder: 'asc' } } },
         take: entry.count * 4, // over-fetch then sample
-      }) as PoolQuestion[];
+      }) as (PoolQuestion & { situationId?: string | null; situationOrder?: number | null })[];
       if (pool.length < entry.count) {
         throw ExamErrors.insufficientQuestions(`Subject ${entry.subjectId}: need ${entry.count} published questions, found ${pool.length}.`);
       }
@@ -187,14 +187,25 @@ export class MockExamService {
           difficultyLevelId: q.difficultyLevelId, learningObjective: q.learningObjective,
           choiceOrder, correctChoice: q.correctChoice,
           weightPercent: entry.weightPercent ?? null,
+          situationId: (q as { situationId?: string | null }).situationId ?? null,
+          situationOrder: (q as { situationOrder?: number | null }).situationOrder ?? null,
         } as BuiltExamQuestion & { weightPercent: number | null });
       }
     }
 
-    // Randomize the global question order (positions reassigned).
-    const ordered = this.shuffle(built);
-    ordered.forEach((q, i) => { q.position = i; });
-    return ordered;
+    // Randomize the global question order, then cluster any sampled
+    // situational siblings so a shared scenario's questions run
+    // consecutively in board order (PRC-style), anchored at the earliest
+    // shuffled position of the set.
+    const ordered = this.shuffle(built) as Array<BuiltExamQuestion & { situationId?: string | null; situationOrder?: number | null }>;
+    const anchor = new Map<string, number>();
+    ordered.forEach((q, i) => { if (q.situationId && !anchor.has(q.situationId)) anchor.set(q.situationId, i); });
+    const clustered = ordered
+      .map((q, i) => ({ q, key: q.situationId ? anchor.get(q.situationId)! : i, sub: q.situationOrder ?? 0 }))
+      .sort((a, b) => (a.key - b.key) || (a.sub - b.sub))
+      .map((x) => x.q);
+    clustered.forEach((q, i) => { q.position = i; });
+    return clustered;
   }
 
   /** Full-board default composition: weighted by subject PRC weighting. */

@@ -43,10 +43,13 @@ export class SolutionService {
   private async loadPublished(questionId: string) {
     const q = await this.prisma.question.findFirst({
       where: { id: questionId, deletedAt: null },
-      select: { id: true, questionCode: true, subjectId: true, topicId: true, stemText: true, correctChoice: true, explanationText: true, questionStatus: true },
+      select: { id: true, questionCode: true, subjectId: true, topicId: true, stemText: true, correctChoice: true, explanationText: true, questionStatus: true, situation: { select: { situationText: true } } },
     });
     if (!q) throw TutorErrors.questionNotFound(questionId);
     if (q.questionStatus !== 'published') throw TutorErrors.questionNotAvailable(questionId);
+    // Situational questions only make sense with their shared scenario — fold
+    // it into the stem so the tutor reasons over the full board-style context.
+    if (q.situation?.situationText) q.stemText = `Situation: ${q.situation.situationText}\n\n${q.stemText}`;
     return q;
   }
 }

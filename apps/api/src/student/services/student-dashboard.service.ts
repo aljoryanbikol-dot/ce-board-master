@@ -74,7 +74,14 @@ export class StudentDashboardService {
     const lastActivity = xp?.lastActivityDate ? new Date(xp.lastActivityDate) : null;
     const activeToday = !!lastActivity && lastActivity.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10);
 
+    // Situational Question Library totals (platform-wide, not per-user).
+    const [totalSituations, totalSituationalQuestions] = await Promise.all([
+      this.prisma.situation.count(),
+      this.prisma.question.count({ where: { situationId: { not: null }, deletedAt: null, questionStatus: 'published' } }),
+    ]);
+
     return {
+      library: { totalSituations, totalSituationalQuestions },
       continueLearning: activeSession ? { sessionId: activeSession.id, mode: activeSession.mode, answeredCount: activeSession.answeredCount, targetCount: activeSession.targetCount } : null,
       dailyGoal: goal,
       streak: { current: xp?.currentStreak ?? 0, longest: xp?.longestStreak ?? 0, activeToday },
