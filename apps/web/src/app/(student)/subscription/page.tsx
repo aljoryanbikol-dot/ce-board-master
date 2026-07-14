@@ -161,14 +161,12 @@ export default function SubscriptionPage() {
                                 ) : p.priceMinor === 0 ? (
                                   <Button size="sm" disabled={pending} onClick={() => selectPlan(p.id)}>Select</Button>
                                 ) : (
-                                  <div className="flex flex-col gap-1.5 sm:flex-row">
-                                    <Button size="sm" disabled={pending} onClick={() => setGcashPlan(p)}>
-                                      <Smartphone className="h-3.5 w-3.5" /> GCash
-                                    </Button>
-                                    <Button size="sm" variant="outline" disabled={pending} onClick={() => selectPlan(p.id)}>
-                                      Card / e-wallet
-                                    </Button>
-                                  </div>
+                                  /* GCash only for now — the PayMongo checkout stays
+                                     wired in the backend but is hidden until the
+                                     gateway account's business KYC is completed. */
+                                  <Button size="sm" disabled={pending} onClick={() => setGcashPlan(p)}>
+                                    <Smartphone className="h-3.5 w-3.5" /> Pay via GCash
+                                  </Button>
                                 )}
                               </div>
                             ))}
