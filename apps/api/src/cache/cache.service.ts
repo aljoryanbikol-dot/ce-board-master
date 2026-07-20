@@ -83,6 +83,33 @@ export const CacheNamespace = {
   TUTOR: 'tutor',
 } as const;
 
+/**
+ * Hard ceiling for any single cache operation. The keyv Redis client has NO
+ * command timeout: when Redis is unreachable (provider outage, suspended
+ * database, rotated credentials) a get/set queues forever while the client
+ * retries the connection in the background — the try/catch below never fires
+ * and every request path that touches the cache (login lockout checks, plan
+ * lookups, dashboards) hangs indefinitely. This exact failure took login down
+ * in production. Racing every operation against a short deadline turns a dead
+ * Redis into cache misses: slower, but the site stays up.
+ */
+const CACHE_OP_TIMEOUT_MS = 1_500;
+
+class CacheTimeoutError extends Error {
+  constructor(op: string) { super(`Cache ${op} timed out after ${CACHE_OP_TIMEOUT_MS}ms (Redis unreachable?)`); }
+}
+
+function withTimeout<T>(op: string, promise: Promise<T>): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      const t = setTimeout(() => reject(new CacheTimeoutError(op)), CACHE_OP_TIMEOUT_MS);
+      // Don't hold the event loop open for the timer.
+      (t as unknown as { unref?: () => void }).unref?.();
+    }),
+  ]);
+}
+
 @Injectable()
 export class CacheService {
   private readonly logger = new Logger(CacheService.name);
@@ -103,7 +130,7 @@ export class CacheService {
    */
   async get<T>(key: string): Promise<T | null> {
     try {
-      const value = await this.cache.get<string>(key);
+      const value = await withTimeout('get', this.cache.get<string>(key));
       if (value === undefined || value === null) {
         return null;
       }
@@ -120,7 +147,7 @@ export class CacheService {
    */
   async set(key: string, value: unknown, ttlSeconds: number): Promise<void> {
     try {
-      await this.cache.set(key, JSON.stringify(value), ttlSeconds * 1000);
+      await withTimeout('set', this.cache.set(key, JSON.stringify(value), ttlSeconds * 1000));
     } catch (error) {
       this.logger.warn(`Cache set error for key "${key}":`, error);
       // Cache failures are non-fatal — the application continues without cache
@@ -132,7 +159,7 @@ export class CacheService {
    */
   async del(key: string): Promise<void> {
     try {
-      await this.cache.del(key);
+      await withTimeout('del', this.cache.del(key));
     } catch (error) {
       this.logger.warn(`Cache delete error for key "${key}":`, error);
     }
@@ -157,7 +184,7 @@ export class CacheService {
       let deleted = 0;
 
       do {
-        const [nextCursor, keys] = await store.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        const [nextCursor, keys] = await withTimeout<[string, string[]]>('scan', store.scan(cursor, 'MATCH', pattern, 'COUNT', 100));
         cursor = nextCursor;
 
         if (keys.length > 0) {
