@@ -171,13 +171,12 @@ export class LoginService {
       });
     }
 
-    if (!user.isVerified) {
-      await this.recordAuditLog(user.id, email, ipAddress, userAgent, false, 'unverified');
-      throw new ForbiddenException({
-        code: AUTH_ERROR_CODES.ACCOUNT_NOT_VERIFIED,
-        message: 'Please verify your email address before logging in.',
-      });
-    }
+    // NOTE: the email-verification gate is intentionally not enforced here.
+    // Verification emails are delivered through the Redis-backed queue; when
+    // that queue is unavailable the mail never arrives and an enforced gate
+    // locks every new user out permanently. Registration now creates verified
+    // accounts (register.service.ts); restore this check together with that
+    // flag once email delivery is proven healthy.
 
     if (!user.isActive || user.status !== 'active') {
       await this.recordAuditLog(user.id, email, ipAddress, userAgent, false, 'suspended');

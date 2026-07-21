@@ -21,6 +21,9 @@ const mockPrisma = {
   $transaction: vi.fn(),
 };
 
+/** The transaction-scoped user.create spy, re-armed in beforeEach. */
+let txUserCreate: ReturnType<typeof vi.fn>;
+
 const mockPasswordService = { hash: vi.fn().mockResolvedValue('$argon2id$hashed') };
 const mockTokenService    = { generateOneTimeToken: vi.fn().mockResolvedValue('raw-token-abc123') };
 const mockEmailService    = { sendVerificationEmail: vi.fn().mockResolvedValue(undefined) };
@@ -58,10 +61,12 @@ describe('RegisterService', () => {
     mockPrisma.user.findUnique.mockResolvedValue(null);
     mockPrisma.role.findUnique.mockResolvedValue({ id: 'role-id', slug: 'free_user' });
 
-    // $transaction executes the callback with the mock prisma instance
+    // $transaction executes the callback with the mock prisma instance.
+    // txUserCreate is shared so tests can assert on the row actually written.
+    txUserCreate = vi.fn().mockResolvedValue({ id: 'user-001', email: validDto.email });
     mockPrisma.$transaction.mockImplementation((fn: Function) =>
       fn({
-        user:        { create: vi.fn().mockResolvedValue({ id: 'user-001', email: validDto.email }) },
+        user:        { create: txUserCreate },
         userProfile: { create: vi.fn().mockResolvedValue({}) },
       }),
     );
@@ -75,7 +80,9 @@ describe('RegisterService', () => {
 
       expect(result.userId).toBe('user-001');
       expect(result.email).toBe(validDto.email);
-      expect(result.message).toContain('verify');
+      // Accounts are created ready to use — verification is not enforced while
+      // verification mail depends on the Redis-backed queue.
+      expect(result.message).toContain('sign in');
     });
 
     it('should hash the password with Argon2id before storing', async () => {
@@ -103,15 +110,17 @@ describe('RegisterService', () => {
       expect(findUniqueCallOrder).toBeLessThan(hashCallOrder);
     });
 
-    it('should generate a verification token and send verification email', async () => {
+    // Verification is disabled platform-wide while verification mail depends on
+    // the Redis-backed queue: accounts are created already verified and no
+    // verification email is generated, so a queue outage cannot lock anyone out.
+    it('should create a verified account without sending a verification email', async () => {
       await service.register(validDto, '1.2.3.4');
 
-      expect(mockTokenService.generateOneTimeToken).toHaveBeenCalledWith('user-001', 'email_verify');
-      expect(mockEmailService.sendVerificationEmail).toHaveBeenCalledWith(
-        validDto.email,
-        validDto.firstName,
-        'raw-token-abc123',
-      );
+      const created = txUserCreate.mock.calls[0]?.[0]?.data;
+      expect(created?.isVerified).toBe(true);
+      expect(created?.status).toBe('active');
+      expect(mockTokenService.generateOneTimeToken).not.toHaveBeenCalled();
+      expect(mockEmailService.sendVerificationEmail).not.toHaveBeenCalled();
     });
 
     it('should pass ip address to the user record', async () => {

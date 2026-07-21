@@ -104,13 +104,16 @@ describe('AuthService', () => {
       expect(result).toBeNull();
     });
 
-    it('should throw UnauthorizedException ACCOUNT_NOT_VERIFIED for unverified account', async () => {
+    // The email-verification gate is deliberately not enforced: verification
+    // mail rides the Redis-backed queue, so an outage there would lock users
+    // out permanently. An unverified-but-active account must still sign in.
+    it('should allow an unverified but active account to authenticate', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ ...activeDbUser, isVerified: false });
       mockPasswordService.verify.mockResolvedValue(true);
 
-      const error = await service.validateCredentials('juan@example.com', 'correctpass').catch((e) => e);
-      expect(error).toBeInstanceOf(UnauthorizedException);
-      expect((error.getResponse() as any).code).toBe('ACCOUNT_NOT_VERIFIED');
+      const result = await service.validateCredentials('juan@example.com', 'correctpass');
+      expect(result).not.toBeNull();
+      expect(result?.email).toBe('juan@example.com');
     });
 
     it('should throw UnauthorizedException ACCOUNT_SUSPENDED for suspended account', async () => {

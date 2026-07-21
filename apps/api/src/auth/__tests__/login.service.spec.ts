@@ -84,6 +84,12 @@ describe('LoginService', () => {
     service = buildService();
     mockPrisma.user.findUnique.mockResolvedValue(activeUser);
     mockPasswordService.verify.mockResolvedValue(true);
+    // Re-arm lockout defaults every test: a `mockResolvedValue` set inside one
+    // test persists across the suite, so an earlier "locked" case would
+    // otherwise leak ACCOUNT_LOCKED into every later test.
+    mockLockoutService.getLockoutStatus.mockResolvedValue({ isLocked: false, remainingSeconds: 0, failureCount: 0 });
+    mockLockoutService.recordFailure.mockResolvedValue(false);
+    mockLockoutService.clearLockout.mockResolvedValue(undefined);
   });
 
   // ── Success paths ───────────────────────────────────────────────────────────
@@ -209,10 +215,13 @@ describe('LoginService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({ ...activeUser, isVerified: false });
     });
 
-    it('should throw ForbiddenException ACCOUNT_NOT_VERIFIED', async () => {
-      const error = await service.login(validInput).catch((e) => e);
-      expect(error).toBeInstanceOf(ForbiddenException);
-      expect((error.getResponse() as any).code).toBe('ACCOUNT_NOT_VERIFIED');
+    // Verification is not enforced at login — see login.service.ts. Mail is
+    // queued through Redis, so enforcing it turns a queue outage into a
+    // permanent lockout for users who already paid.
+    it('should sign in an unverified but active account', async () => {
+      const result = await service.login(validInput);
+      expect(result.tokenPair).toBeDefined();
+      expect(result.user.email).toBe(validInput.email);
     });
   });
 

@@ -95,12 +95,7 @@ export class AuthService implements IAuthService {
       return null;
     }
 
-    if (!user.isVerified) {
-      throw new UnauthorizedException({
-        code: AUTH_ERROR_CODES.ACCOUNT_NOT_VERIFIED,
-        message: 'Please verify your email address before logging in.',
-      });
-    }
+    // Email-verification gate intentionally not enforced — see login.service.ts.
 
     if (!user.isActive || user.status !== 'active' || user.deletedAt !== null) {
       throw new UnauthorizedException({

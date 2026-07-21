@@ -66,13 +66,13 @@ export class RegisterService {
   async register(dto: RegisterDto, ipAddress?: string): Promise<RegisterResult> {
     const { firstName, lastName, email, password, examTargetDate, school } = dto;
 
-    // When email delivery isn't configured yet, AUTH_AUTO_VERIFY lets accounts
-    // be usable immediately (created active + verified, no verification email).
-    // Flip this off once real verification emails are wired up.
-    // ConfigService can hand back the raw process.env string ("true") rather
-    // than the Zod-coerced boolean, so normalise via String() to accept either.
-    const autoVerify =
-      String(this.config.get('AUTH_AUTO_VERIFY', { infer: true })) === 'true';
+    // Email verification is currently disabled platform-wide: verification
+    // emails ride the Redis-backed BullMQ queue, so any Redis outage would
+    // lock new users out of accounts they just paid for. Accounts are created
+    // active + verified and can sign in immediately. Restore the gate by
+    // reading AUTH_AUTO_VERIFY again once email delivery is proven healthy
+    // (see login.service.ts, which drops the matching login-time check).
+    const autoVerify = true;
 
     // ── 1. Duplicate-email guard ──────────────────────────────────────────────
     // Check BEFORE hashing to avoid ~200ms Argon2 work on duplicate requests.
