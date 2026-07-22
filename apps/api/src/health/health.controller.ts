@@ -24,8 +24,8 @@ import {
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { SkipThrottle } from '@nestjs/throttler';
-import type { AppEnvironment } from '@/config/configuration';
-import { PrismaService } from '@/database/prisma.service';
+import type { AppEnvironment } from '../config/configuration';
+import { PrismaService } from '../database/prisma.service';
 import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('Health')

@@ -18,7 +18,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, PrismaClient } from '@prisma/client';
-import type { AppEnvironment } from '@/config/configuration';
+import type { AppEnvironment } from '../config/configuration';
 
 /**
  * Models that implement the soft-delete pattern (a nullable `deletedAt`

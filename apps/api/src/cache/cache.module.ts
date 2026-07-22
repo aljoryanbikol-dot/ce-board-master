@@ -17,7 +17,7 @@ import { CacheModule as NestCacheModule } from '@nestjs/cache-manager';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { createKeyv } from '@keyv/redis';
 import { CacheService } from './cache.service';
-import type { AppEnvironment } from '@/config/configuration';
+import type { AppEnvironment } from '../config/configuration';
 
 @Global()
 @Module({

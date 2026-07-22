@@ -20,7 +20,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
-import type { AppEnvironment } from '@/config/configuration';
+import type { AppEnvironment } from '../config/configuration';
 
 @Injectable()
 export class AnalyticsPrismaService

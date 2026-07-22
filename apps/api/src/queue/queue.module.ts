@@ -20,7 +20,7 @@
 import { Global, Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import type { AppEnvironment } from '@/config/configuration';
+import type { AppEnvironment } from '../config/configuration';
 
 /** Named queues — use these constants throughout the application */
 export const QUEUE_NAMES = {
