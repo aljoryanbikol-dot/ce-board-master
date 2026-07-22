@@ -104,3 +104,5 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   if (!cached) cached = await createApp();
   cached.getHttpAdapter().getInstance().server.emit('request', req, res);
 }
+
+// Deployment marker: redeploy to pick up the corrected JWT key pair.
