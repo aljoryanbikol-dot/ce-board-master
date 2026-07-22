@@ -58,7 +58,13 @@ export class HealthController {
   @ApiResponse({ status: 200, description: 'All critical systems healthy' })
   @ApiResponse({ status: 503, description: 'One or more critical systems unhealthy' })
   async check() {
-    const dbThreshold = this.config.get('HEALTH_DB_THRESHOLD_MS', { infer: true });
+    // The configured threshold assumes a warm, always-on instance. On a
+    // serverless cold start the very first query also pays connection setup,
+    // which routinely exceeds it — reporting the whole platform "down" while
+    // every real endpoint answers fine. Give the ping a floor generous enough
+    // to cover that one-off cost.
+    const configured = this.config.get('HEALTH_DB_THRESHOLD_MS', { infer: true }) ?? 200;
+    const dbThreshold = Math.max(configured, 5_000);
     const version = this.config.get('APP_VERSION', { infer: true });
 
     const result = await this.health.check([
@@ -81,7 +87,7 @@ export class HealthController {
 
     const result = await this.health.check([
       (): Promise<HealthIndicatorResult> =>
-        this.prismaHealth.pingCheck('database', this.prisma, { timeout: 500 }),
+        this.prismaHealth.pingCheck('database', this.prisma, { timeout: 5_000 }),
       (): Promise<HealthIndicatorResult> =>
         this.memoryHealth.checkHeap('memory_heap', 512 * 1024 * 1024),
       (): Promise<HealthIndicatorResult> =>
