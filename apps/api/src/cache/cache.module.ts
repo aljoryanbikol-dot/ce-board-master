@@ -16,6 +16,8 @@ import { Global, Module } from '@nestjs/common';
 import { CacheModule as NestCacheModule } from '@nestjs/cache-manager';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { createKeyv } from '@keyv/redis';
+import Keyv from 'keyv';
+import { Logger } from '@nestjs/common';
 import { CacheService } from './cache.service';
 import type { AppEnvironment } from '../config/configuration';
 
@@ -32,15 +34,29 @@ import type { AppEnvironment } from '../config/configuration';
         const db = config.get('REDIS_DB_CACHE', { infer: true });
         const tls = config.get('REDIS_TLS', { infer: true });
 
+        // Cache is an optimisation, never a dependency. A managed Redis can
+        // lose its credentials or hit a plan quota at any time, and pointing
+        // the store at an unreachable server made every cached read throw —
+        // taking pages like the exam list down with it. When Redis is not
+        // fully configured, fall back to an in-process store: slower across
+        // instances, but the platform keeps serving.
+        const hasRedis = Boolean(host && password);
+        if (!hasRedis) {
+          new Logger('CacheModule').warn(
+            'Redis is not fully configured (host/password) — using an in-memory cache. ' +
+            'Set REDIS_HOST and REDIS_PASSWORD to restore the shared cache.',
+          );
+          return {
+            stores: [new Keyv()],
+            ttl: config.get('REDIS_DEFAULT_TTL', { infer: true })! * 1000,
+          };
+        }
+
         const scheme = tls ? 'rediss' : 'redis';
-        const redisUrl = password
-          ? `${scheme}://:${password}@${host}:${port}/${db}`
-          : `${scheme}://${host}:${port}/${db}`;
+        const redisUrl = `${scheme}://:${password}@${host}:${port}/${db}`;
 
         return {
-          stores: [
-createKeyv(redisUrl),
-          ],
+          stores: [createKeyv(redisUrl)],
           ttl: config.get('REDIS_DEFAULT_TTL', { infer: true })! * 1000,
         };
       },
