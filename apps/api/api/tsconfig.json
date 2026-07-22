@@ -1,0 +1,11 @@
+{
+  // The serverless entry lives outside src/, which the Nest build pins as its
+  // rootDir. Vercel compiles functions with the nearest tsconfig, so give this
+  // directory its own that keeps the same compiler options minus rootDir.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "noEmit": true
+  },
+  "include": ["./**/*", "../src/**/*"]
+}

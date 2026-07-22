@@ -42,7 +42,14 @@ export const QUEUE_NAMES = {
           password: config.get('REDIS_PASSWORD', { infer: true }) || undefined,
           db: config.get('REDIS_DB_QUEUE', { infer: true }),
           tls: config.get('REDIS_TLS', { infer: true }) ? {} : undefined,
-          // Retry strategy: exponential backoff up to 30 seconds
+          // Never block application bootstrap on Redis: connect on first use,
+          // fail an enqueue fast rather than buffering it forever, and stop
+          // retrying a single command indefinitely. A dead queue must degrade
+          // to "email not sent", never to "the API won't start" — which is
+          // exactly what happened when the Redis credentials went stale.
+          lazyConnect: true,
+          enableOfflineQueue: false,
+          maxRetriesPerRequest: 2,
           retryStrategy: (times: number) => Math.min(times * 1000, 30_000),
         },
         defaultJobOptions: {
