@@ -24,6 +24,7 @@ import type {
   NormalizedWebhookEvent,
   VerifyPaymentResult,
 } from '../types/payment-provider.interface';
+import { httpFetch, type HttpFetchResponse } from '../../common/types/http-fetch.types';
 
 const PAYMONGO_API = 'https://api.paymongo.com/v1';
 
@@ -80,9 +81,9 @@ export class PayMongoProvider implements PaymentProvider {
       },
     };
 
-    let response: Response;
+    let response: HttpFetchResponse;
     try {
-      response = await fetch(`${PAYMONGO_API}/checkout_sessions`, {
+      response = await httpFetch(`${PAYMONGO_API}/checkout_sessions`, {
         method: 'POST',
         headers: { Authorization: this.authHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -156,9 +157,9 @@ export class PayMongoProvider implements PaymentProvider {
   }
 
   async verifyPayment(providerRef: string): Promise<VerifyPaymentResult> {
-    let response: Response;
+    let response: HttpFetchResponse;
     try {
-      response = await fetch(`${PAYMONGO_API}/checkout_sessions/${providerRef}`, {
+      response = await httpFetch(`${PAYMONGO_API}/checkout_sessions/${providerRef}`, {
         headers: { Authorization: this.authHeader() },
       });
     } catch (err) {

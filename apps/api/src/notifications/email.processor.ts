@@ -26,6 +26,7 @@ import { Job } from 'bullmq';
 import { QUEUE_NAMES } from '../queue/queue.module';
 import type { EmailJobPayload } from '../auth/services/email.service';
 import type { AppEnvironment } from '../config/configuration';
+import { httpFetch } from '../common/types/http-fetch.types';
 
 const RESEND_API = 'https://api.resend.com/emails';
 
@@ -161,7 +162,11 @@ export class EmailProcessor extends WorkerHost {
     const from = `${this.config.get('EMAIL_FROM_NAME', { infer: true })} <${this.config.get('EMAIL_FROM', { infer: true })}>`;
     const { subject, html } = render(payload);
 
-    const res = await fetch(RESEND_API, {
+    // Typed locally rather than relying on the ambient fetch/Response types:
+    // which lib supplies them differs between the local @types/node and the
+    // toolchain the deploy platform resolves, and that mismatch broke the
+    // build while the same code compiled fine on a developer machine.
+    const res = await httpFetch(RESEND_API, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ from, to: [payload.to], subject, html }),

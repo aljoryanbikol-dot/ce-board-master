@@ -24,6 +24,7 @@ import type {
   NormalizedWebhookEvent,
   VerifyPaymentResult,
 } from '../types/payment-provider.interface';
+import { httpFetch, type HttpFetchResponse } from '../../common/types/http-fetch.types';
 
 const XENDIT_API = 'https://api.xendit.co';
 
@@ -71,9 +72,9 @@ export class XenditProvider implements PaymentProvider {
       metadata:          { paymentId: input.paymentId, ...input.metadata },
     };
 
-    let response: Response;
+    let response: HttpFetchResponse;
     try {
-      response = await fetch(`${XENDIT_API}/v2/invoices`, {
+      response = await httpFetch(`${XENDIT_API}/v2/invoices`, {
         method: 'POST',
         headers: { Authorization: this.authHeader(), 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -132,9 +133,9 @@ export class XenditProvider implements PaymentProvider {
   }
 
   async verifyPayment(providerRef: string): Promise<VerifyPaymentResult> {
-    let response: Response;
+    let response: HttpFetchResponse;
     try {
-      response = await fetch(`${XENDIT_API}/v2/invoices/${providerRef}`, {
+      response = await httpFetch(`${XENDIT_API}/v2/invoices/${providerRef}`, {
         headers: { Authorization: this.authHeader() },
       });
     } catch (err) {
