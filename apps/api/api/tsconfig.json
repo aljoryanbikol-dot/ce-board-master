@@ -5,7 +5,12 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "rootDir": "..",
-    "noEmit": true
+    "noEmit": true,
+    // The code calls global fetch (Resend delivery). Locally the installed
+    // @types/node supplies Response/fetch, but Vercel's build resolves a
+    // toolchain where it does not, so declare DOM explicitly rather than
+    // depending on which @types/node the platform happens to pick.
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["./**/*", "../src/**/*"]
 }
